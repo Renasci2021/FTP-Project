@@ -1,4 +1,8 @@
+# Lecture handouts
 autograde/
 tcp/
 udp/
 *.pdf
+
+# Visual Studio Code
+.vscode/
