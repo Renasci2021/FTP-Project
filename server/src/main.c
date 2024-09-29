@@ -3,27 +3,32 @@
 #include <string.h>
 #include <unistd.h>
 #include <arpa/inet.h>
+#include "include/arg_parser.h"
 #include "include/server.h"
 
-#define PORT 21
-
-int main()
+int main(int argc, char *argv[])
 {
     int server_fd, new_socket;
     struct sockaddr_in address;
-    int opt = 1;
     int addrlen = sizeof(address);
-    char buffer[BUFFER_SIZE] = {0};
+    int port;
+    char *root;
+
+    int result = parse_arguments(argc, argv, &port, &root);
+    if (result <= 0)
+    {
+        return result;
+    }
 
     // 创建套接字
-    server_fd = create_server_socket(PORT);
+    server_fd = create_server_socket(port);
     if (server_fd < 0)
     {
         perror("Failed to create server socket");
         exit(EXIT_FAILURE);
     }
 
-    printf("Server is listening on port %d\n", PORT);
+    printf("Server is listening on port %d\n", port);
 
     while (1)
     {
