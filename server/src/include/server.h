@@ -6,6 +6,6 @@
 #define BUFFER_SIZE 1024 // 缓冲区大小
 
 int create_server_socket(int port);
-void handle_client(int client_socket);
+void *handle_client(void *arg);
 
 #endif // SERVER_H

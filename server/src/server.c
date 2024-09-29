@@ -5,6 +5,7 @@
 #include <arpa/inet.h>
 #include "include/server.h"
 #include "include/commands.h"
+#include "include/session.h"
 #include "include/utils.h"
 
 // 创建服务器套接字
@@ -47,22 +48,41 @@ int create_server_socket(int port)
 }
 
 // 处理客户端请求
-void handle_client(int client_socket)
+void *handle_client(void *arg)
 {
+    int client_socket = *(int *)arg;
     char buffer[BUFFER_SIZE] = {0};
     int bytes_read;
 
-    // 发送欢迎消息
-    send_message(client_socket, "220 Anonymous FTP server ready.\n");
-
-    // 读取客户端发送的数据
-    bytes_read = read(client_socket, buffer, BUFFER_SIZE);
-    if (bytes_read > 0)
+    // 添加会话
+    if (add_session(client_socket) < 0)
     {
+        send_message(client_socket, "421 Too many users logged in.\r\n");
+        close(client_socket);
+        return NULL;
+    }
+
+    // 发送欢迎消息
+    send_message(client_socket, "220 Anonymous FTP server ready.\r\n");
+
+    while (1)
+    {
+        // 读取客户端发送的数据
+        bytes_read = read(client_socket, buffer, BUFFER_SIZE);
+        if (bytes_read < 0)
+        {
+            break;
+        }
+
         buffer[bytes_read] = '\0'; // 添加字符串结束符
         log_info("Received: %s", buffer);
 
         // 处理客户端命令
         process_command(buffer, client_socket);
     }
+
+    // 移除会话和关闭连接
+    remove_session(client_socket);
+    close(client_socket);
+    return NULL;
 }
