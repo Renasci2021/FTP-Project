@@ -4,6 +4,7 @@
 #include <unistd.h>
 #include <arpa/inet.h>
 #include "include/server.h"
+#include "include/commands.h"
 
 // 创建服务器套接字
 int create_server_socket(int port)

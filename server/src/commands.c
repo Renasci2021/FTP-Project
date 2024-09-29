@@ -1,5 +1,7 @@
 #include <stdio.h>
 #include <string.h>
+#include <unistd.h>
+#include <sys/socket.h>
 #include "include/commands.h"
 
 // 处理 FTP 命令
