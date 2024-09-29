@@ -7,7 +7,10 @@ typedef struct
 {
     int socket;
     char username[50];
+    char password[50];
+
     int logged_in; // 0: 未登录, 1: 已登录
+    int waiting_for_pass; // 0: 未等待 PASS 命令, 1: 等待 PASS 命令
 } ClientSession;
 
 extern ClientSession sessions[MAX_CLIENTS];

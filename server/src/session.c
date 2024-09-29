@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <string.h>
 #include "include/session.h"
 #include "include/globals.h"
 
@@ -25,7 +26,11 @@ int add_session(int client_socket)
     }
 
     sessions[client_count].socket = client_socket;
+    memset(sessions[client_count].username, 0, 50);
+    memset(sessions[client_count].password, 0, 50);
     sessions[client_count].logged_in = 0;
+    sessions[client_count].waiting_for_pass = 0;
+
     client_count++;
     return 0;
 }
