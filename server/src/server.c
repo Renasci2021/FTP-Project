@@ -52,6 +52,9 @@ void handle_client(int client_socket)
     char buffer[BUFFER_SIZE] = {0};
     int bytes_read;
 
+    // 发送欢迎消息
+    send_message(client_socket, "220 Anonymous FTP server ready.\n");
+
     // 读取客户端发送的数据
     bytes_read = read(client_socket, buffer, BUFFER_SIZE);
     if (bytes_read > 0)

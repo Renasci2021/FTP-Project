@@ -17,7 +17,7 @@ public class FtpClient
             Console.WriteLine("Connected to {0}:{1}", host, port);
 
             // Read welcome message
-            // ReadResponse();
+            ReadResponse();
         }
         catch
         {
