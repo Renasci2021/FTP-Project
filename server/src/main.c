@@ -3,8 +3,13 @@
 #include <string.h>
 #include <unistd.h>
 #include <arpa/inet.h>
+#include <errno.h>
 #include "include/arg_parser.h"
 #include "include/server.h"
+#include "include/globals.h"
+#include "include/utils.h"
+
+int debug_mode = 0;
 
 int main(int argc, char *argv[])
 {
@@ -24,20 +29,20 @@ int main(int argc, char *argv[])
     server_fd = create_server_socket(port);
     if (server_fd < 0)
     {
-        perror("Failed to create server socket");
+        log_error("Failed to create server socket");
         exit(EXIT_FAILURE);
     }
 
-    printf("Server is listening on port %d\n", port);
+    log_info("Server is listening on port %d\n", port);
 
     while (1)
     {
         if ((new_socket = accept(server_fd, (struct sockaddr *)&address, (socklen_t *)&addrlen)) < 0)
         {
-            perror("accept");
+            log_error("Error accepting connection: %s\n", strerror(errno));
             exit(EXIT_FAILURE);
         }
-        printf("New connection established\n");
+        log_info("New connection established\n");
 
         // 处理客户端请求
         handle_client(new_socket);

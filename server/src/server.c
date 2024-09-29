@@ -5,6 +5,7 @@
 #include <arpa/inet.h>
 #include "include/server.h"
 #include "include/commands.h"
+#include "include/utils.h"
 
 // 创建服务器套接字
 int create_server_socket(int port)
@@ -56,7 +57,7 @@ void handle_client(int client_socket)
     if (bytes_read > 0)
     {
         buffer[bytes_read] = '\0'; // 添加字符串结束符
-        printf("Received: %s", buffer);
+        log_info("Received: %s", buffer);
 
         // 处理客户端命令
         process_command(buffer, client_socket);

@@ -2,9 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "include/arg_parser.h"
-
-#define DEFAULT_PORT 21
-#define DEFAULT_ROOT "/tmp"
+#include "include/globals.h"
 
 void print_help()
 {
@@ -13,6 +11,7 @@ void print_help()
     printf("Options:\n");
     printf("  -port n       Set the TCP port number (default: 21)\n");
     printf("  -root path    Set the root directory for requests (default: /tmp)\n");
+    printf("  -debug        Enable debug output\n");
     printf("  -help         Display this help message\n");
 }
 
@@ -30,6 +29,10 @@ int parse_arguments(int argc, char *argv[], int *port, char **root)
         else if (strcmp(argv[i], "-root") == 0 && i + 1 < argc)
         {
             *root = argv[++i];
+        }
+        else if (strcmp(argv[i], "-debug") == 0)
+        {
+            debug_mode = 1;
         }
         else if (strcmp(argv[i], "-help") == 0)
         {
