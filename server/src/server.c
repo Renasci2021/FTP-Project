@@ -3,6 +3,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <arpa/inet.h>
+#include <errno.h>
 #include "include/server.h"
 #include "include/commands.h"
 #include "include/session.h"
@@ -71,6 +72,12 @@ void *handle_client(void *arg)
         bytes_read = read(client_socket, buffer, BUFFER_SIZE);
         if (bytes_read < 0)
         {
+            log_error("Error reading from socket: %s\n", strerror(errno));
+            break;
+        }
+        else if (bytes_read == 0)
+        {
+            log_info("Client disconnected\n");
             break;
         }
 
