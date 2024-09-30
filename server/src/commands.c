@@ -6,9 +6,6 @@
 #include "include/utils.h"
 #include "include/session.h"
 
-void handle_user_command(char *command, int client_socket, ClientSession *session);
-void handle_pass_command(char *command, int client_socket, ClientSession *session);
-
 // 处理 FTP 命令
 void process_command(char *command, int client_socket)
 {
@@ -19,54 +16,39 @@ void process_command(char *command, int client_socket)
         return;
     }
 
-    if (session->waiting_for_pass &&
+    if (session->expecting_pass &&
         strncmp(command, "PASS", 4) != 0)
     {
         send_message(client_socket, "503 Bad sequence of commands.\r\n");
         return;
     }
 
-    if (!session->logged_in &&
-        strncmp(command, "USER", 4) != 0)
+    CommandMapping command_mappings[] = {
+        {"USER", handle_user},
+        {"PASS", handle_pass},
+        {"QUIT", handle_quit},
+        {NULL, NULL}};
+
+    for (int i = 0; command_mappings[i].command != NULL; i++)
     {
-        send_message(client_socket, "530 Please login with USER and PASS.\r\n");
+        if (strncmp(command, command_mappings[i].command, strlen(command_mappings[i].command)) == 0)
+        {
+            command_mappings[i].handler(session, client_socket, command);
+            return;
+        }
+    }
+
+    handle_unknown(session, client_socket, command);
+}
+
+void handle_user(ClientSession *session, int client_socket, const char *command)
+{
+    if (session->logged_in)
+    {
+        send_message(client_socket, "530 Can't change user, user is already logged in.\r\n");
         return;
     }
 
-    // 保证一定是登录状态
-
-    if (strncmp(command, "USER", 4) == 0)
-    {
-        if (session->logged_in)
-        {
-            send_message(client_socket, "530 Can't change user, user is already logged in.\r\n");
-            return;
-        }
-
-        handle_user_command(command, client_socket, session);
-    }
-    else if (strncmp(command, "PASS", 4) == 0)
-    {
-        if (!session->waiting_for_pass)
-        {
-            send_message(client_socket, "503 Bad sequence of commands.\r\n");
-            return;
-        }
-
-        handle_pass_command(command, client_socket, session);
-    }
-    else if (strncmp(command, "QUIT", 4) == 0)
-    {
-        send_message(client_socket, "221 Goodbye.\r\n");
-    }
-    else
-    {
-        send_message(client_socket, "500 Unknown command.\r\n");
-    }
-}
-
-void handle_user_command(char *command, int client_socket, ClientSession *session)
-{
     char username[50];
     sscanf(command, "USER %s", username);
 
@@ -77,17 +59,34 @@ void handle_user_command(char *command, int client_socket, ClientSession *sessio
     }
 
     session->logged_in = 1;
-    session->waiting_for_pass = 1;
+    session->expecting_pass = 1;
     strcpy(session->username, username);
     send_message(client_socket, "331 Guest login ok, send your complete e-mail address as password.\r\n");
 }
 
-void handle_pass_command(char *command, int client_socket, ClientSession *session)
+void handle_pass(ClientSession *session, int client_socket, const char *command)
 {
+    if (!session->expecting_pass)
+    {
+        send_message(client_socket, "503 Bad sequence of commands.\r\n");
+        return;
+    }
+
     char password[50];
     sscanf(command, "PASS %s", password);
 
-    session->waiting_for_pass = 0;
+    session->expecting_pass = 0;
     strcpy(session->password, password);
     send_message(client_socket, "230 Login successful.\r\n");
+}
+
+void handle_quit(ClientSession *session, int control_socket, const char *command)
+{
+    session->is_connected = 0;
+    send_message(control_socket, "221 Goodbye.\r\n");
+}
+
+void handle_unknown(ClientSession *session, int control_socket, const char *command)
+{
+    send_message(control_socket, "500 Unknown command.\r\n");
 }

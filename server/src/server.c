@@ -56,7 +56,8 @@ void *handle_client(void *arg)
     int bytes_read;
 
     // 添加会话
-    if (add_session(client_socket) < 0)
+    ClientSession *session = add_session(client_socket);
+    if (session == NULL)
     {
         send_message(client_socket, "421 Too many users logged in.\r\n");
         close(client_socket);
@@ -66,7 +67,7 @@ void *handle_client(void *arg)
     // 发送欢迎消息
     send_message(client_socket, "220 Anonymous FTP server ready.\r\n");
 
-    while (1)
+    while (session->is_connected)
     {
         // 读取客户端发送的数据
         bytes_read = read(client_socket, buffer, BUFFER_SIZE);
@@ -77,7 +78,7 @@ void *handle_client(void *arg)
         }
         else if (bytes_read == 0)
         {
-            log_info("Client disconnected\n");
+            log_info("Client closed connection\n");
             break;
         }
 
@@ -91,5 +92,6 @@ void *handle_client(void *arg)
     // 移除会话和关闭连接
     remove_session(client_socket);
     close(client_socket);
+    log_info("Client disconnected\n");
     return NULL;
 }

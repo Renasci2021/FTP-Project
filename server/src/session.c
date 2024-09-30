@@ -18,21 +18,18 @@ ClientSession *find_session(int client_socket)
     return NULL; // 未找到会话
 }
 
-int add_session(int client_socket)
+ClientSession *add_session(int client_socket)
 {
     if (client_count >= MAX_CLIENTS)
     {
-        return -1; // 会话已满
+        return NULL; // 会话已满
     }
 
+    memset(&sessions[client_count], 0, sizeof(ClientSession));
     sessions[client_count].socket = client_socket;
-    memset(sessions[client_count].username, 0, 50);
-    memset(sessions[client_count].password, 0, 50);
-    sessions[client_count].logged_in = 0;
-    sessions[client_count].waiting_for_pass = 0;
+    sessions[client_count].is_connected = 1;
 
-    client_count++;
-    return 0;
+    return &sessions[client_count++];
 }
 
 void remove_session(int client_socket)
