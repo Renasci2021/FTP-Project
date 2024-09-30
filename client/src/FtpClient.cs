@@ -5,8 +5,8 @@ namespace FtpClient;
 
 public class FtpClient
 {
-    private TcpClient _client;
-    private NetworkStream _stream;
+    private TcpClient? _client;
+    private NetworkStream? _stream;
 
     public void Connect(string host, int port)
     {

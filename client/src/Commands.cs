@@ -17,8 +17,8 @@ public class Commands
                 break;
             case "QUIT":
                 client.ProcessCommand(command);
-                client.Disconnect();
-                Environment.Exit(0);
+                // client.Disconnect();
+                // Environment.Exit(0);
                 break;
             default:
                 Console.WriteLine("Invalid command");
