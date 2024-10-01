@@ -4,6 +4,7 @@
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <errno.h>
+#include <time.h>
 #include "include/server.h"
 #include "include/commands.h"
 #include "include/session.h"
@@ -40,12 +41,32 @@ int create_server_socket(int port)
     }
 
     // 开始监听连接
-    if (listen(server_fd, 3) < 0)
+    if (listen(server_fd, SOMAXCONN) < 0)
     {
         return -1;
     }
 
     return server_fd; // 返回服务器套接字
+}
+
+// 创建被动模式套接字
+int create_passive_socket()
+{
+    int port, server_fd;
+    int max_attempts = 10; // 最大尝试次数
+    srand(time(NULL));
+
+    while (max_attempts--)
+    {
+        port = rand() % (65535 - 20000) + 20000; // 生成 20000 到 65535 之间的随机端口号
+
+        if ((server_fd = create_server_socket(port)) >= 0)
+        {
+            return server_fd;
+        }
+    }
+
+    return -1;
 }
 
 // 处理客户端请求
@@ -82,8 +103,8 @@ void *handle_client(void *arg)
             break;
         }
 
-        buffer[bytes_read] = '\0'; // 添加字符串结束符
-        log_info("Received: %s", buffer);
+        // 去除字符串末尾的换行符
+        trim_crlf(buffer);
 
         // 处理客户端命令
         process_command(buffer, client_socket);

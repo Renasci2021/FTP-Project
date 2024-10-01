@@ -3,6 +3,7 @@
 #include <unistd.h>
 #include <sys/socket.h>
 #include "include/commands.h"
+#include "include/server.h"
 #include "include/utils.h"
 #include "include/session.h"
 
@@ -24,11 +25,12 @@ void process_command(char *command, int client_socket)
         return;
     }
 
+#define COMMAND(cmd, handler) {cmd, handler},
     CommandMapping command_mappings[] = {
-        {"USER", handle_user},
-        {"PASS", handle_pass},
-        {"QUIT", handle_quit},
-        {NULL, NULL}};
+        COMMAND_LIST // 展开宏列表
+        {NULL, NULL} // 结束标记
+    };
+#undef COMMAND
 
     for (int i = 0; command_mappings[i].command != NULL; i++)
     {
@@ -105,8 +107,86 @@ void handle_pass(ClientSession *session, int client_socket, const char *command)
     send_message(client_socket, "230 Login successful.\r\n");
 }
 
+void handle_port(ClientSession *session, int client_socket, const char *command)
+{
+    if (!session->is_logged_in)
+    {
+        send_message(client_socket, "530 Please login with USER and PASS.\r\n");
+        return;
+    }
+
+    if (session->is_data_socket_open)
+    {
+        close(session->data_socket);
+        session->is_data_socket_open = 0;
+    }
+
+    if (strlen(command) <= 5)
+    {
+        send_message(client_socket, "501 Syntax error in parameters or arguments.\r\n");
+        return;
+    }
+
+    unsigned int ip1, ip2, ip3, ip4, port1, port2;
+    if (sscanf(command, "PORT %u,%u,%u,%u,%u,%u", &ip1, &ip2, &ip3, &ip4, &port1, &port2) != 6)
+    {
+        send_message(client_socket, "501 Syntax error in parameters or arguments.\r\n");
+        return;
+    }
+
+    if (ip1 > 255 || ip2 > 255 || ip3 > 255 || ip4 > 255 || port1 > 255 || port2 > 255)
+    {
+        send_message(client_socket, "501 Invalid IP address or port number.\r\n");
+        return;
+    }
+
+    sprintf(session->ip_address, "%u.%u.%u.%u", ip1, ip2, ip3, ip4);
+    session->port = port1 * 256 + port2;
+    session->data_mode = PORT_MODE;
+    send_message(client_socket, "200 PORT command successful.\r\n");
+}
+
+void handle_pasv(ClientSession *session, int client_socket, const char *command)
+{
+    if (!session->is_logged_in)
+    {
+        send_message(client_socket, "530 Please login with USER and PASS.\r\n");
+        return;
+    }
+
+    if (session->is_data_socket_open)
+    {
+        close(session->data_socket);
+        session->is_data_socket_open = 0;
+    }
+
+    int data_socket = create_passive_socket();
+    if (data_socket < 0)
+    {
+        send_message(client_socket, "425 Can't open passive connection.\r\n");
+        return;
+    }
+
+    struct sockaddr_in data_address;
+    socklen_t data_address_len = sizeof(data_address);
+    getsockname(data_socket, (struct sockaddr *)&data_address, &data_address_len);
+
+    unsigned char *ip = (unsigned char *)&data_address.sin_addr.s_addr;
+    unsigned char *port = (unsigned char *)&data_address.sin_port;
+
+    session->data_socket = data_socket;
+    session->data_mode = PASV_MODE;
+    session->is_data_socket_open = 1;
+
+    char response[256];
+    sprintf(response, "227 Entering Passive Mode (%d,%d,%d,%d,%d,%d).\r\n",
+            ip[0], ip[1], ip[2], ip[3], port[0], port[1]);
+    send_message(client_socket, response);
+}
+
 void handle_quit(ClientSession *session, int control_socket, const char *command)
 {
+    // TODO: 关闭数据连接
     session->is_connected = 0;
     send_message(control_socket, "221 Goodbye.\r\n");
 }

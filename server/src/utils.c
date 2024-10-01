@@ -6,6 +6,21 @@
 #include "include/utils.h"
 #include "include/globals.h"
 
+void trim_crlf(char *str)
+{
+    int len = strlen(str);
+    str[len] = '\0';
+
+    if (str[len - 1] == '\n')
+    {
+        str[len - 1] = '\0';
+    }
+    if (str[len - 2] == '\r')
+    {
+        str[len - 2] = '\0';
+    }
+}
+
 void log_error(const char *format, ...)
 {
     if (debug_mode)

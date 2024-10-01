@@ -6,23 +6,7 @@ public class Commands
     {
         string[] parts = command.Split(' ');
         string cmd = parts[0].ToUpper();
-
-        switch (cmd)
-        {
-            case "USER":
-                client.ProcessCommand(command);
-                break;
-            case "PASS":
-                client.ProcessCommand(command);
-                break;
-            case "QUIT":
-                client.ProcessCommand(command);
-                // client.Disconnect();
-                // Environment.Exit(0);
-                break;
-            default:
-                Console.WriteLine("Invalid command");
-                break;
-        }
+        command = $"{cmd} {string.Join(" ", parts[1..])}";
+        client.ProcessCommand(command);
     }
 }
