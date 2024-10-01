@@ -10,7 +10,7 @@ ClientSession *find_session(int client_socket)
 {
     for (int i = 0; i < client_count; i++)
     {
-        if (sessions[i].socket == client_socket)
+        if (sessions[i].control_socket == client_socket)
         {
             return &sessions[i];
         }
@@ -26,8 +26,9 @@ ClientSession *add_session(int client_socket)
     }
 
     memset(&sessions[client_count], 0, sizeof(ClientSession));
-    sessions[client_count].socket = client_socket;
+    sessions[client_count].control_socket = client_socket;
     sessions[client_count].is_connected = 1;
+    strcpy(sessions[client_count].current_dir, root_path);
 
     return &sessions[client_count++];
 }
@@ -36,7 +37,7 @@ void remove_session(int client_socket)
 {
     for (int i = 0; i < client_count; i++)
     {
-        if (sessions[i].socket == client_socket)
+        if (sessions[i].control_socket == client_socket)
         {
             // 移动最后一个会话到当前位置
             sessions[i] = sessions[--client_count];
