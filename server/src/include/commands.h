@@ -19,6 +19,9 @@ void handle_pass(ClientSession *session, int client_socket, const char *command)
 void handle_port(ClientSession *session, int client_socket, const char *command);
 void handle_pasv(ClientSession *session, int client_socket, const char *command);
 
+void handle_retr(ClientSession *session, int client_socket, const char *command);
+void handle_stor(ClientSession *session, int client_socket, const char *command);
+
 void handle_quit(ClientSession *session, int client_socket, const char *command);
 
 void handle_unknown(ClientSession *session, int client_socket, const char *command);
@@ -28,6 +31,8 @@ void handle_unknown(ClientSession *session, int client_socket, const char *comma
     COMMAND("PASS", handle_pass) \
     COMMAND("PORT", handle_port) \
     COMMAND("PASV", handle_pasv) \
+    COMMAND("RETR", handle_retr) \
+    COMMAND("STOR", handle_stor) \
     COMMAND("QUIT", handle_quit)
 
 #endif // COMMANDS_H

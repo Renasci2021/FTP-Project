@@ -184,9 +184,126 @@ void handle_pasv(ClientSession *session, int client_socket, const char *command)
     send_message(client_socket, response);
 }
 
+void handle_retr(ClientSession *session, int client_socket, const char *command)
+{
+    if (!session->is_logged_in)
+    {
+        send_message(client_socket, "530 Please login with USER and PASS.\r\n");
+        return;
+    }
+
+    if (session->data_mode == 0)
+    {
+        send_message(client_socket, "425 Use PORT or PASV first.\r\n");
+        return;
+    }
+
+    if (strlen(command) <= 5)
+    {
+        send_message(client_socket, "501 Syntax error in parameters or arguments.\r\n");
+        return;
+    }
+
+    if (session->data_mode == PORT_MODE &&
+        session->is_data_socket_open == 0)
+    {
+        int data_socket = socket(AF_INET, SOCK_STREAM, 0);
+        if (data_socket < 0)
+        {
+            send_message(client_socket, "425 Can't open data connection.\r\n");
+            return;
+        }
+        log_info("Data socket created: %d\n", data_socket);
+
+        struct sockaddr_in data_address;
+        data_address.sin_family = AF_INET;
+        data_address.sin_port = htons(session->port);
+        data_address.sin_addr.s_addr = inet_addr(session->ip_address);
+
+        if (connect(data_socket, (struct sockaddr *)&data_address, sizeof(data_address)) < 0)
+        {
+            send_message(client_socket, "425 Can't open data connection.\r\n");
+            close(data_socket);
+            return;
+        }
+        log_info("Data socket connected in PORT mode.\n");
+
+        session->data_socket = data_socket;
+        session->is_data_socket_open = 1;
+    }
+
+    if (session->is_data_socket_open == 0)
+    {
+        send_message(client_socket, "425 Can't open data connection.\r\n");
+        return;
+    }
+
+    char filename[PATH_MAX_LEN];
+    sscanf(command, "RETR %s", filename);
+    char filepath[PATH_MAX_LEN * 2];
+    snprintf(filepath, PATH_MAX_LEN * 2, "%s/%s", session->working_directory, filename);
+
+    log_info("[%d] Retrieving file: %s\n", client_socket, filepath);
+
+    FILE *file = fopen(filepath, "rb"); // 以二进制只读方式打开文件
+    if (file == NULL)
+    {
+        send_message(client_socket, "550 File not found.\r\n");
+        goto retr_close_connection;
+    }
+
+    send_message(client_socket, "150 Opening data connection.\r\n");
+
+    char buffer[BUFFER_SIZE];
+    int bytes_read;
+    while ((bytes_read = fread(buffer, 1, BUFFER_SIZE, file)) > 0)
+    {
+        int total_bytes_sent = 0;
+        while (total_bytes_sent < bytes_read)
+        {
+            int bytes_sent = send(session->data_socket, buffer + total_bytes_sent, bytes_read - total_bytes_sent, 0);
+            if (bytes_sent < 0)
+            {
+                send_message(client_socket, "426 Connection closed; transfer aborted.\r\n");
+                fclose(file);
+                goto retr_close_connection;
+            }
+            total_bytes_sent += bytes_sent;
+        }
+        session->bytes_transferred += total_bytes_sent;
+    }
+
+    if (ferror(file))
+    {
+        send_message(client_socket, "451 File read error.\r\n");
+        fclose(file);
+        goto retr_close_connection;
+    }
+
+    send_message(client_socket, "226 Transfer complete.\r\n");
+
+    // 关闭文件和数据连接
+retr_close_connection:
+    close(session->data_socket);
+    session->is_data_socket_open = 0;
+    session->data_mode = 0;
+    log_info("Data connection closed.\n");
+}
+
+void handle_stor(ClientSession *session, int client_socket, const char *command)
+{
+    // TODO: Implement this function
+    send_message(client_socket, "502 Command not implemented.\r\n");
+}
+
 void handle_quit(ClientSession *session, int control_socket, const char *command)
 {
-    // TODO: 关闭数据连接
+    if (session->is_data_socket_open)
+    {
+        close(session->data_socket);
+        session->is_data_socket_open = 0;
+    }
+
     session->is_connected = 0;
     send_message(control_socket, "221 Goodbye.\r\n");
 }

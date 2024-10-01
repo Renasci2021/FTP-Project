@@ -104,13 +104,19 @@ void *handle_client(void *arg)
         }
 
         // 去除字符串末尾的换行符
+        buffer[bytes_read] = '\0';
         trim_crlf(buffer);
+        log_info("[%d] %s\n", client_socket, buffer);
 
         // 处理客户端命令
         process_command(buffer, client_socket);
     }
 
     // 移除会话和关闭连接
+    if (session->is_data_socket_open)
+    {
+        close(session->data_socket);
+    }
     remove_session(client_socket);
     close(client_socket);
     log_info("Client disconnected\n");

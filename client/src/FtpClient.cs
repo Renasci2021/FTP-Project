@@ -43,6 +43,7 @@ public class FtpClient
         ReadResponse();
     }
 
+
     private void ReadResponse()
     {
         if (_stream == null)
