@@ -10,6 +10,9 @@
 #include "include/globals.h"
 #include "include/utils.h"
 
+int port = DEFAULT_PORT;
+char root_path[PATH_MAX_LEN] = DEFAULT_ROOT;
+
 int debug_mode = 0;
 
 int main(int argc, char *argv[])
@@ -17,10 +20,8 @@ int main(int argc, char *argv[])
     int server_fd, new_socket;
     struct sockaddr_in address;
     int addrlen = sizeof(address);
-    int port;
-    char *root;
 
-    int result = parse_arguments(argc, argv, &port, &root);
+    int result = parse_arguments(argc, argv, &port, root_path);
     if (result <= 0)
     {
         return result;

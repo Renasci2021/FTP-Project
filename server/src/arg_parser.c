@@ -15,11 +15,8 @@ void print_help()
     printf("  -help         Display this help message\n");
 }
 
-int parse_arguments(int argc, char *argv[], int *port, char **root)
+int parse_arguments(int argc, char *argv[], int *port, char *root)
 {
-    *port = DEFAULT_PORT;
-    *root = DEFAULT_ROOT;
-
     for (int i = 1; i < argc; i++)
     {
         if (strcmp(argv[i], "-port") == 0 && i + 1 < argc)
@@ -28,7 +25,12 @@ int parse_arguments(int argc, char *argv[], int *port, char **root)
         }
         else if (strcmp(argv[i], "-root") == 0 && i + 1 < argc)
         {
-            *root = argv[++i];
+            if (strlen(argv[i + 1]) >= PATH_MAX_LEN)
+            {
+                fprintf(stderr, "Root path is too long\n");
+                return -1;
+            }
+            strcpy(root_path, root);
         }
         else if (strcmp(argv[i], "-debug") == 0)
         {

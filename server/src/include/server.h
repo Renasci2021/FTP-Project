@@ -3,8 +3,6 @@
 
 #include <arpa/inet.h>
 
-#define BUFFER_SIZE 1024 // 缓冲区大小
-
 int create_server_socket(int port);
 void *handle_client(void *arg);
 

@@ -17,7 +17,8 @@ void process_command(char *command, int client_socket)
     }
 
     if (session->expecting_pass &&
-        strncmp(command, "PASS", 4) != 0)
+        strncmp(command, "PASS", 4) != 0 &&
+        strncmp(command, "QUIT", 4) != 0)
     {
         send_message(client_socket, "503 Bad sequence of commands.\r\n");
         return;
@@ -43,13 +44,25 @@ void process_command(char *command, int client_socket)
 
 void handle_user(ClientSession *session, int client_socket, const char *command)
 {
-    if (session->logged_in)
+    if (session->is_logged_in)
     {
         send_message(client_socket, "530 Can't change user, user is already logged in.\r\n");
         return;
     }
 
-    char username[50];
+    if (strlen(command) <= 5)
+    {
+        send_message(client_socket, "501 Username required.\r\n");
+        return;
+    }
+
+    if (strlen(command) >= USERNAME_MAX_LEN)
+    {
+        send_message(client_socket, "501 Username too long.\r\n");
+        return;
+    }
+
+    char username[USERNAME_MAX_LEN];
     sscanf(command, "USER %s", username);
 
     if (strcmp(username, "anonymous") != 0)
@@ -58,7 +71,7 @@ void handle_user(ClientSession *session, int client_socket, const char *command)
         return;
     }
 
-    session->logged_in = 1;
+    session->is_logged_in = 1;
     session->expecting_pass = 1;
     strcpy(session->username, username);
     send_message(client_socket, "331 Guest login ok, send your complete e-mail address as password.\r\n");
@@ -72,7 +85,19 @@ void handle_pass(ClientSession *session, int client_socket, const char *command)
         return;
     }
 
-    char password[50];
+    if (strlen(command) <= 5)
+    {
+        send_message(client_socket, "501 Password required.\r\n");
+        return;
+    }
+
+    if (strlen(command) >= PASSWORD_MAX_LEN)
+    {
+        send_message(client_socket, "501 Password too long.\r\n");
+        return;
+    }
+
+    char password[PASSWORD_MAX_LEN];
     sscanf(command, "PASS %s", password);
 
     session->expecting_pass = 0;
