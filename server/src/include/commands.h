@@ -22,7 +22,10 @@ void handle_pasv(ClientSession *session, int client_socket, const char *command)
 void handle_retr(ClientSession *session, int client_socket, const char *command);
 void handle_stor(ClientSession *session, int client_socket, const char *command);
 
+void handle_syst(ClientSession *session, int client_socket, const char *command);
+void handle_type(ClientSession *session, int client_socket, const char *command);
 void handle_quit(ClientSession *session, int client_socket, const char *command);
+void handle_abor(ClientSession *session, int client_socket, const char *command);
 
 void handle_unknown(ClientSession *session, int client_socket, const char *command);
 
@@ -33,6 +36,9 @@ void handle_unknown(ClientSession *session, int client_socket, const char *comma
     COMMAND("PASV", handle_pasv) \
     COMMAND("RETR", handle_retr) \
     COMMAND("STOR", handle_stor) \
-    COMMAND("QUIT", handle_quit)
+    COMMAND("SYST", handle_syst) \
+    COMMAND("TYPE", handle_type) \
+    COMMAND("QUIT", handle_quit) \
+    COMMAND("ABOR", handle_abor)
 
 #endif // COMMANDS_H

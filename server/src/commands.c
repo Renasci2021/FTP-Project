@@ -282,7 +282,7 @@ void handle_retr(ClientSession *session, int client_socket, const char *command)
 
     send_message(client_socket, "226 Transfer complete.\r\n");
 
-    // 关闭文件和数据连接
+    // 关闭数据连接
 retr_close_connection:
     close(session->data_socket);
     session->is_data_socket_open = 0;
@@ -296,7 +296,30 @@ void handle_stor(ClientSession *session, int client_socket, const char *command)
     send_message(client_socket, "502 Command not implemented.\r\n");
 }
 
-void handle_quit(ClientSession *session, int control_socket, const char *command)
+void handle_syst(ClientSession *session, int client_socket, const char *command)
+{
+    send_message(client_socket, "215 UNIX Type: L8\r\n");
+}
+
+void handle_type(ClientSession *session, int client_socket, const char *command)
+{
+    if (strlen(command) <= 5)
+    {
+        send_message(client_socket, "501 Syntax error in parameters or arguments.\r\n");
+        return;
+    }
+
+    if (strncmp(command, "TYPE I", 6) == 0)
+    {
+        send_message(client_socket, "200 Type set to I.\r\n");
+    }
+    else
+    {
+        send_message(client_socket, "504 Command not implemented for that parameter.\r\n");
+    }
+}
+
+void handle_quit(ClientSession *session, int client_socket, const char *command)
 {
     if (session->is_data_socket_open)
     {
@@ -305,10 +328,15 @@ void handle_quit(ClientSession *session, int control_socket, const char *command
     }
 
     session->is_connected = 0;
-    send_message(control_socket, "221 Goodbye.\r\n");
+    send_message(client_socket, "221 Goodbye.\r\n");
 }
 
-void handle_unknown(ClientSession *session, int control_socket, const char *command)
+void handle_abor(ClientSession *session, int client_socket, const char *command)
 {
-    send_message(control_socket, "500 Unknown command.\r\n");
+    handle_quit(session, client_socket, command);
+}
+
+void handle_unknown(ClientSession *session, int client_socket, const char *command)
+{
+    send_message(client_socket, "500 Unknown command.\r\n");
 }
