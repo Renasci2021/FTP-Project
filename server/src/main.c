@@ -43,7 +43,7 @@ int main(int argc, char *argv[])
             log_error("Error accepting connection: %s\n", strerror(errno));
             continue;
         }
-        log_info("New connection established\n");
+        log_info("[%d] New connection established\n", new_socket);
 
         // 创建新线程处理客户端请求
         pthread_t thread;

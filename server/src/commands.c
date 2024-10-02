@@ -212,74 +212,31 @@ void handle_retr(ClientSession *session, int client_socket, const char *command)
         return;
     }
 
-    if (session->data_mode == PORT_MODE)
+    // 创建数据连接
+    if (create_data_connection(session) < 0)
     {
-        int data_socket = socket(AF_INET, SOCK_STREAM, 0);
-        if (data_socket < 0)
-        {
-            send_message(client_socket, "425 Can't open data connection.\r\n");
-            return;
-        }
-
-        struct sockaddr_in data_address;
-        data_address.sin_family = AF_INET;
-        data_address.sin_port = htons(session->port);
-        data_address.sin_addr.s_addr = inet_addr(session->ip_address);
-
-        if (connect(data_socket, (struct sockaddr *)&data_address, sizeof(data_address)) < 0)
-        {
-            send_message(client_socket, "425 Can't open data connection.\r\n");
-            close(data_socket);
-            return;
-        }
-        log_info("Data socket connected in PORT mode.\n");
-
-        session->data_socket = data_socket;
-    }
-    else if (session->data_mode == PASV_MODE)
-    {
-        int data_socket = accept(session->pasv_socket, NULL, NULL);
-        if (data_socket < 0)
-        {
-            send_message(client_socket, "425 Can't open data connection.\r\n");
-            close(session->pasv_socket);
-            return;
-        }
-        log_info("Data socket connected in PASV mode.\n");
-
-        close(session->pasv_socket);
-        session->data_socket = data_socket;
-    }
-    else
-    {
-        // 状态不正确，返回内部错误
-        log_error("Wrong data connection state: %d\n", session->data_mode);
-        if (session->data_socket > 0)
-        {
-            close(session->data_socket);
-            session->data_socket = 0;
-            session->data_mode = 0;
-        }
-        send_message(client_socket, "500 Internal error.\r\n");
+        send_message(client_socket, "425 Can't open data connection.\r\n");
         return;
     }
 
+    // 打开文件
     char filename[PATH_MAX_LEN];
     sscanf(command, "RETR %s", filename);
     char filepath[PATH_MAX_LEN * 2];
     snprintf(filepath, PATH_MAX_LEN * 2, "%s/%s", session->working_directory, filename);
-
     log_info("[%d] Retrieving file: %s\n", client_socket, filepath);
 
     FILE *file = fopen(filepath, "rb"); // 以二进制只读方式打开文件
     if (file == NULL)
     {
+        close_data_connection(session);
         send_message(client_socket, "550 File not found.\r\n");
-        goto close_data_connection;
+        return;
     }
 
     send_message(client_socket, "150 Opening data connection.\r\n");
 
+    // 发送文件内容
     char buffer[BUFFER_SIZE];
     int bytes_read;
     while ((bytes_read = fread(buffer, 1, BUFFER_SIZE, file)) > 0)
@@ -290,36 +247,112 @@ void handle_retr(ClientSession *session, int client_socket, const char *command)
             int bytes_sent = send(session->data_socket, buffer + total_bytes_sent, bytes_read - total_bytes_sent, 0);
             if (bytes_sent < 0)
             {
-                send_message(client_socket, "426 Connection closed; transfer aborted.\r\n");
                 fclose(file);
-                goto close_data_connection;
+                close_data_connection(session);
+                send_message(client_socket, "426 Connection closed; transfer aborted.\r\n");
             }
             total_bytes_sent += bytes_sent;
         }
         session->bytes_transferred += total_bytes_sent;
     }
 
+    fclose(file);
+    close_data_connection(session);
+
     if (ferror(file))
     {
         send_message(client_socket, "451 File read error.\r\n");
-        fclose(file);
-        goto close_data_connection;
     }
-
-    send_message(client_socket, "226 Transfer complete.\r\n");
-
-    // 关闭数据连接
-close_data_connection:
-    close(session->data_socket);
-    session->data_socket = 0;
-    session->data_mode = 0;
-    log_info("Data connection closed.\n");
+    else
+    {
+        send_message(client_socket, "226 Transfer complete.\r\n");
+    }
 }
 
 void handle_stor(ClientSession *session, int client_socket, const char *command)
 {
-    // TODO: Implement this function
-    send_message(client_socket, "502 Command not implemented.\r\n");
+    if (!session->is_logged_in)
+    {
+        send_message(client_socket, "530 Please login with USER and PASS.\r\n");
+        return;
+    }
+
+    if (session->data_mode == 0)
+    {
+        send_message(client_socket, "425 Use PORT or PASV first.\r\n");
+        return;
+    }
+
+    if (strlen(command) <= 5)
+    {
+        send_message(client_socket, "501 Syntax error in parameters or arguments.\r\n");
+        return;
+    }
+
+    if (session->data_socket > 0)
+    {
+        close(session->data_socket);
+        session->data_socket = 0;
+        log_error("Data socket already open.\n");
+        send_message(client_socket, "500 Internal error.\r\n");
+        return;
+    }
+
+    // 创建数据连接
+    if (create_data_connection(session) < 0)
+    {
+        send_message(client_socket, "425 Can't open data connection.\r\n");
+        return;
+    }
+
+    // 打开文件
+    char filename[PATH_MAX_LEN];
+    sscanf(command, "STOR %s", filename);
+    char filepath[PATH_MAX_LEN * 2];
+    snprintf(filepath, PATH_MAX_LEN * 2, "%s/%s", session->working_directory, filename);
+    log_info("[%d] Storing file: %s\n", client_socket, filepath);
+
+    FILE *file = fopen(filepath, "wb"); // 以二进制写入模式打开文件
+    if (file == NULL)
+    {
+        close_data_connection(session);
+        send_message(client_socket, "550 File not found or permission denied.\r\n");
+        return;
+    }
+
+    send_message(client_socket, "150 Opening data connection.\r\n");
+
+    // 接收文件内容
+    char buffer[BUFFER_SIZE];
+    int bytes_received;
+    while ((bytes_received = recv(session->data_socket, buffer, BUFFER_SIZE, 0)) > 0)
+    {
+        int total_bytes_written = 0;
+        while (total_bytes_written < bytes_received)
+        {
+            int bytes_written = fwrite(buffer + total_bytes_written, 1, bytes_received - total_bytes_written, file);
+            if (bytes_written < 0)
+            {
+                fclose(file);
+                close_data_connection(session);
+                send_message(client_socket, "451 File write error.\r\n");
+            }
+            total_bytes_written += bytes_written;
+        }
+        session->bytes_transferred += total_bytes_written;
+    }
+
+    fclose(file);
+    close_data_connection(session);
+
+    if (bytes_received < 0)
+    {
+        send_message(client_socket, "426 Connection closed; transfer aborted.\r\n");
+    }
+    else
+    {
+        send_message(client_socket, "226 Transfer complete.\r\n");
+    }
 }
 
 void handle_syst(ClientSession *session, int client_socket, const char *command)

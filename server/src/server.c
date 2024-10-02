@@ -69,6 +69,65 @@ int create_passive_socket()
     return -1;
 }
 
+// 创建数据连接
+int create_data_connection(ClientSession *session)
+{
+    if (session->data_mode == PORT_MODE)
+    {
+        int data_socket = socket(AF_INET, SOCK_STREAM, 0);
+        if (data_socket < 0)
+        {
+            return -1;
+        }
+
+        struct sockaddr_in data_address;
+        data_address.sin_family = AF_INET;
+        data_address.sin_port = htons(session->port);
+        data_address.sin_addr.s_addr = inet_addr(session->ip_address);
+
+        if (connect(data_socket, (struct sockaddr *)&data_address, sizeof(data_address)) < 0)
+        {
+            close(data_socket);
+            return -1;
+        }
+        session->data_socket = data_socket;
+    }
+    else if (session->data_mode == PASV_MODE)
+    {
+        int data_socket = accept(session->pasv_socket, NULL, NULL);
+        if (data_socket < 0)
+        {
+            close(session->pasv_socket);
+            session->pasv_socket = 0;
+            return -1;
+        }
+        close(session->pasv_socket);
+        session->pasv_socket = 0;
+        session->data_socket = data_socket;
+    }
+    else
+    {
+        log_error("Wrong data connection state: %d\n", session->data_mode);
+        session->data_mode = 0;
+        return -1;
+    }
+
+    log_info("[%d] Data connection established: %d\n", session->control_socket, session->data_socket);
+    return 0;
+}
+
+// 关闭数据连接
+void close_data_connection(ClientSession *session)
+{
+    if (session->data_socket > 0)
+    {
+        close(session->data_socket);
+        log_info("[%d] Data connection closed: %d\n", session->control_socket, session->data_socket);
+        session->data_socket = 0;
+    }
+    session->data_mode = 0;
+}
+
 // 处理客户端请求
 void *handle_client(void *arg)
 {
@@ -99,7 +158,7 @@ void *handle_client(void *arg)
         }
         else if (bytes_read == 0)
         {
-            log_info("Client closed connection\n");
+            log_info("[%d] Client closed connection\n", client_socket);
             break;
         }
 
@@ -123,6 +182,6 @@ void *handle_client(void *arg)
     }
     remove_session(client_socket);
     close(client_socket);
-    log_info("Client disconnected\n");
+    log_info("[%d] Client disconnected\n", client_socket);
     return NULL;
 }
