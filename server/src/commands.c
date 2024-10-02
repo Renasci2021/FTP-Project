@@ -115,10 +115,10 @@ void handle_port(ClientSession *session, int client_socket, const char *command)
         return;
     }
 
-    if (session->is_data_socket_open)
+    if (session->data_socket > 0)
     {
         close(session->data_socket);
-        session->is_data_socket_open = 0;
+        session->data_socket = 0;
     }
 
     if (strlen(command) <= 5)
@@ -154,14 +154,14 @@ void handle_pasv(ClientSession *session, int client_socket, const char *command)
         return;
     }
 
-    if (session->is_data_socket_open)
+    if (session->data_socket > 0)
     {
         close(session->data_socket);
-        session->is_data_socket_open = 0;
+        session->data_socket = 0;
     }
 
-    int data_socket = create_passive_socket();
-    if (data_socket < 0)
+    int pasv_socket = create_passive_socket();
+    if (pasv_socket < 0)
     {
         send_message(client_socket, "425 Can't open passive connection.\r\n");
         return;
@@ -169,14 +169,13 @@ void handle_pasv(ClientSession *session, int client_socket, const char *command)
 
     struct sockaddr_in data_address;
     socklen_t data_address_len = sizeof(data_address);
-    getsockname(data_socket, (struct sockaddr *)&data_address, &data_address_len);
+    getsockname(pasv_socket, (struct sockaddr *)&data_address, &data_address_len);
 
     unsigned char *ip = (unsigned char *)&data_address.sin_addr.s_addr;
     unsigned char *port = (unsigned char *)&data_address.sin_port;
 
-    session->data_socket = data_socket;
+    session->pasv_socket = pasv_socket;
     session->data_mode = PASV_MODE;
-    session->is_data_socket_open = 1;
 
     char response[256];
     sprintf(response, "227 Entering Passive Mode (%d,%d,%d,%d,%d,%d).\r\n",
@@ -204,8 +203,16 @@ void handle_retr(ClientSession *session, int client_socket, const char *command)
         return;
     }
 
-    if (session->data_mode == PORT_MODE &&
-        session->is_data_socket_open == 0)
+    if (session->data_socket > 0)
+    {
+        close(session->data_socket);
+        session->data_socket = 0;
+        log_error("Data socket already open.\n");
+        send_message(client_socket, "500 Internal error.\r\n");
+        return;
+    }
+
+    if (session->data_mode == PORT_MODE)
     {
         int data_socket = socket(AF_INET, SOCK_STREAM, 0);
         if (data_socket < 0)
@@ -213,7 +220,6 @@ void handle_retr(ClientSession *session, int client_socket, const char *command)
             send_message(client_socket, "425 Can't open data connection.\r\n");
             return;
         }
-        log_info("Data socket created: %d\n", data_socket);
 
         struct sockaddr_in data_address;
         data_address.sin_family = AF_INET;
@@ -229,12 +235,32 @@ void handle_retr(ClientSession *session, int client_socket, const char *command)
         log_info("Data socket connected in PORT mode.\n");
 
         session->data_socket = data_socket;
-        session->is_data_socket_open = 1;
     }
-
-    if (session->is_data_socket_open == 0)
+    else if (session->data_mode == PASV_MODE)
     {
-        send_message(client_socket, "425 Can't open data connection.\r\n");
+        int data_socket = accept(session->pasv_socket, NULL, NULL);
+        if (data_socket < 0)
+        {
+            send_message(client_socket, "425 Can't open data connection.\r\n");
+            close(session->pasv_socket);
+            return;
+        }
+        log_info("Data socket connected in PASV mode.\n");
+
+        close(session->pasv_socket);
+        session->data_socket = data_socket;
+    }
+    else
+    {
+        // 状态不正确，返回内部错误
+        log_error("Wrong data connection state: %d\n", session->data_mode);
+        if (session->data_socket > 0)
+        {
+            close(session->data_socket);
+            session->data_socket = 0;
+            session->data_mode = 0;
+        }
+        send_message(client_socket, "500 Internal error.\r\n");
         return;
     }
 
@@ -249,7 +275,7 @@ void handle_retr(ClientSession *session, int client_socket, const char *command)
     if (file == NULL)
     {
         send_message(client_socket, "550 File not found.\r\n");
-        goto retr_close_connection;
+        goto close_data_connection;
     }
 
     send_message(client_socket, "150 Opening data connection.\r\n");
@@ -266,7 +292,7 @@ void handle_retr(ClientSession *session, int client_socket, const char *command)
             {
                 send_message(client_socket, "426 Connection closed; transfer aborted.\r\n");
                 fclose(file);
-                goto retr_close_connection;
+                goto close_data_connection;
             }
             total_bytes_sent += bytes_sent;
         }
@@ -277,15 +303,15 @@ void handle_retr(ClientSession *session, int client_socket, const char *command)
     {
         send_message(client_socket, "451 File read error.\r\n");
         fclose(file);
-        goto retr_close_connection;
+        goto close_data_connection;
     }
 
     send_message(client_socket, "226 Transfer complete.\r\n");
 
     // 关闭数据连接
-retr_close_connection:
+close_data_connection:
     close(session->data_socket);
-    session->is_data_socket_open = 0;
+    session->data_socket = 0;
     session->data_mode = 0;
     log_info("Data connection closed.\n");
 }
@@ -321,10 +347,13 @@ void handle_type(ClientSession *session, int client_socket, const char *command)
 
 void handle_quit(ClientSession *session, int client_socket, const char *command)
 {
-    if (session->is_data_socket_open)
+    if (session->pasv_socket > 0)
+    {
+        close(session->pasv_socket);
+    }
+    if (session->data_socket > 0)
     {
         close(session->data_socket);
-        session->is_data_socket_open = 0;
     }
 
     session->is_connected = 0;

@@ -113,7 +113,11 @@ void *handle_client(void *arg)
     }
 
     // 移除会话和关闭连接
-    if (session->is_data_socket_open)
+    if (session->pasv_socket > 0)
+    {
+        close(session->pasv_socket);
+    }
+    if (session->data_socket > 0)
     {
         close(session->data_socket);
     }

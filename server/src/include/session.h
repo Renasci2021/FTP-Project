@@ -17,13 +17,13 @@ typedef struct
     int port;            // 端口号
 
     int control_socket; // 控制连接
+    int pasv_socket;    // PASV 模式监听套接字
     int data_socket;    // 数据连接
-    int data_mode;      // 0: 未连接, 1: PORT 模式, 2: PASV 模式
 
     int is_connected;   // 0: 未连接, 1: 已连接
-    int is_data_socket_open; // 0: 数据连接未打开, 1: 数据连接已打开
     int is_logged_in;   // 0: 未登录, 1: 已登录
     int expecting_pass; // 0: 未等待 PASS 命令, 1: 等待 PASS 命令
+    int data_mode;      // 0: 未指定, 1: PORT 模式, 2: PASV 模式
 
     long long bytes_transferred; // 传输字节数
 } ClientSession;
