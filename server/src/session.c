@@ -28,7 +28,7 @@ ClientSession *add_session(int client_socket)
     memset(&sessions[client_count], 0, sizeof(ClientSession));
     sessions[client_count].control_socket = client_socket;
     sessions[client_count].is_connected = 1;
-    strcpy(sessions[client_count].current_dir, root_path);
+    strcpy(sessions[client_count].working_directory, root_path);
 
     return &sessions[client_count++];
 }

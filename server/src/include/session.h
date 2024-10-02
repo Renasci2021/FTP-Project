@@ -11,7 +11,7 @@ typedef struct
     char username[USERNAME_MAX_LEN]; // 用户名
     char password[PASSWORD_MAX_LEN]; // 密码
 
-    char current_dir[PATH_MAX_LEN]; // 当前工作目录
+    char working_directory[PATH_MAX_LEN]; // 当前工作目录
 
     char ip_address[16]; // IP 地址
     int port;            // 端口号
