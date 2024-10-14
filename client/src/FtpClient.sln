@@ -1,0 +1,28 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FtpClient.Core", "FtpClient.Core\FtpClient.Core.csproj", "{A57C11E1-E1D1-4345-93DF-A5EB8DD6903B}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FtpClient.CLI", "FtpClient.CLI\FtpClient.CLI.csproj", "{23DBE688-727E-4CEA-AEB2-30C7774556F9}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{A57C11E1-E1D1-4345-93DF-A5EB8DD6903B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A57C11E1-E1D1-4345-93DF-A5EB8DD6903B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A57C11E1-E1D1-4345-93DF-A5EB8DD6903B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A57C11E1-E1D1-4345-93DF-A5EB8DD6903B}.Release|Any CPU.Build.0 = Release|Any CPU
+		{23DBE688-727E-4CEA-AEB2-30C7774556F9}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{23DBE688-727E-4CEA-AEB2-30C7774556F9}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{23DBE688-727E-4CEA-AEB2-30C7774556F9}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{23DBE688-727E-4CEA-AEB2-30C7774556F9}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal
