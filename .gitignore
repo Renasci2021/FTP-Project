@@ -3,6 +3,7 @@ autograde/
 tcp/
 udp/
 *.pdf
+*/autograde*
 
 # Visual Studio Code
 .vscode/

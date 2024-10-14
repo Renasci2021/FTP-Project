@@ -2,6 +2,8 @@
 #include <string.h>
 #include <unistd.h>
 #include <sys/socket.h>
+#include <sys/stat.h>
+#include <errno.h>
 #include "include/commands.h"
 #include "include/server.h"
 #include "include/utils.h"
@@ -396,6 +398,259 @@ void handle_quit(ClientSession *session, int client_socket, const char *command)
 void handle_abor(ClientSession *session, int client_socket, const char *command)
 {
     handle_quit(session, client_socket, command);
+}
+
+void handle_pwd(ClientSession *session, int client_socket, const char *command)
+{
+    if (!session->is_logged_in)
+    {
+        send_message(client_socket, "530 Please login with USER and PASS.\r\n");
+        return;
+    }
+
+    char response[PATH_MAX_LEN + 256];
+    snprintf(response, PATH_MAX_LEN + 256, "257 \"%s\" is the current directory.\r\n", session->working_directory);
+    send_message(client_socket, response);
+}
+
+void handle_mkd(ClientSession *session, int client_socket, const char *command)
+{
+    if (!session->is_logged_in)
+    {
+        send_message(client_socket, "530 Please login with USER and PASS.\r\n");
+        return;
+    }
+
+    if (strlen(command) <= 4)
+    {
+        send_message(client_socket, "501 Syntax error in parameters or arguments.\r\n");
+        return;
+    }
+
+    if (strlen(session->working_directory) + strlen(command + 4) >= PATH_MAX_LEN)
+    {
+        send_message(client_socket, "501 Directory path too long.\r\n");
+        return;
+    }
+
+    char path[PATH_MAX_LEN];
+    snprintf(path, PATH_MAX_LEN * 2, "%s/%s", session->working_directory, command + 4);
+
+    // 目录必须在服务器根目录下
+    if (strncmp(path, root_path, strlen(root_path)) != 0)
+    {
+        send_message(client_socket, "550 Invalid directory name.\r\n");
+        return;
+    }
+
+    if (mkdir(path, 0755) < 0)
+    {
+        if (errno == EEXIST)
+        {
+            send_message(client_socket, "550 Directory already exists.\r\n");
+        }
+        else if (errno == EACCES)
+        {
+            send_message(client_socket, "550 Permission denied.\r\n");
+        }
+        else if (errno == ENOENT)
+        {
+            send_message(client_socket, "550 Parent directory does not exist.\r\n");
+        }
+        else
+        {
+            send_message(client_socket, "550 Failed to create directory.\r\n");
+        }
+    }
+
+    char response[PATH_MAX_LEN + 256];
+    snprintf(response, PATH_MAX_LEN + 256, "257 \"%s\" created.\r\n", path);
+    send_message(client_socket, response);
+}
+
+void handle_rmd(ClientSession *session, int client_socket, const char *command)
+{
+    if (!session->is_logged_in)
+    {
+        send_message(client_socket, "530 Please login with USER and PASS.\r\n");
+        return;
+    }
+
+    if (strlen(command) <= 4)
+    {
+        send_message(client_socket, "501 Syntax error in parameters or arguments.\r\n");
+        return;
+    }
+
+    if (strlen(session->working_directory) + strlen(command + 4) >= PATH_MAX_LEN)
+    {
+        send_message(client_socket, "501 Directory path too long.\r\n");
+        return;
+    }
+
+    char path[PATH_MAX_LEN];
+    snprintf(path, PATH_MAX_LEN * 2, "%s/%s", session->working_directory, command + 4);
+
+    // 目录必须在服务器根目录下
+    if (strncmp(path, root_path, strlen(root_path)) != 0)
+    {
+        send_message(client_socket, "550 Invalid directory name.\r\n");
+        return;
+    }
+
+    if (rmdir(path) < 0)
+    {
+        if (errno == ENOENT)
+        {
+            send_message(client_socket, "550 Directory does not exist.\r\n");
+        }
+        else if (errno == EACCES)
+        {
+            send_message(client_socket, "550 Permission denied.\r\n");
+        }
+        else
+        {
+            send_message(client_socket, "550 Failed to remove directory.\r\n");
+        }
+    }
+
+    send_message(client_socket, "250 Directory removed.\r\n");
+}
+
+void handle_cwd(ClientSession *session, int client_socket, const char *command)
+{
+    if (!session->is_logged_in)
+    {
+        send_message(client_socket, "530 Please login with USER and PASS.\r\n");
+        return;
+    }
+
+    if (strlen(command) <= 4)
+    {
+        send_message(client_socket, "501 Syntax error in parameters or arguments.\r\n");
+        return;
+    }
+
+    if (strlen(session->working_directory) + strlen(command + 4) >= PATH_MAX_LEN)
+    {
+        send_message(client_socket, "501 Directory path too long.\r\n");
+        return;
+    }
+
+    char path[PATH_MAX_LEN];
+    snprintf(path, PATH_MAX_LEN * 2, "%s/%s", session->working_directory, command + 4);
+
+    // 目录必须在服务器根目录下
+    if (strncmp(path, root_path, strlen(root_path)) != 0)
+    {
+        send_message(client_socket, "550 Invalid directory name.\r\n");
+        return;
+    }
+
+    struct stat statbuf;
+    if (stat(path, &statbuf) < 0)
+    {
+        if (errno == ENOENT)
+        {
+            send_message(client_socket, "550 Directory does not exist.\r\n");
+        }
+        else if (errno == EACCES)
+        {
+            send_message(client_socket, "550 Permission denied.\r\n");
+        }
+        else
+        {
+            send_message(client_socket, "550 Failed to change directory.\r\n");
+        }
+        return;
+    }
+
+    // 更新工作目录
+    strncpy(session->working_directory, path, PATH_MAX_LEN);
+
+    char response[PATH_MAX_LEN + 256];
+    sprintf(response, "250 Directory changed to \"%s\".\r\n", path);
+    send_message(client_socket, response);
+}
+
+void handle_list(ClientSession *session, int client_socket, const char *command)
+{
+    if (!session->is_logged_in)
+    {
+        send_message(client_socket, "530 Please login with USER and PASS.\r\n");
+        return;
+    }
+
+    if (session->data_mode == 0)
+    {
+        send_message(client_socket, "425 Use PORT or PASV first.\r\n");
+        return;
+    }
+
+    if (session->data_socket > 0)
+    {
+        close(session->data_socket);
+        session->data_socket = 0;
+        log_error("Data socket already open.\n");
+        send_message(client_socket, "500 Internal error.\r\n");
+        return;
+    }
+
+    // 创建数据连接
+    if (create_data_connection(session) < 0)
+    {
+        send_message(client_socket, "425 Can't open data connection.\r\n");
+        return;
+    }
+
+    send_message(client_socket, "150 Opening data connection.\r\n");
+
+    // 执行 ls 命令
+    FILE *pipe = popen("ls -l", "r");
+    if (pipe == NULL)
+    {
+        close_data_connection(session);
+        send_message(client_socket, "451 Failed to execute command.\r\n");
+        return;
+    }
+
+    // 发送命令输出
+    char buffer[BUFFER_SIZE];
+    int bytes_read;
+    while ((bytes_read = fread(buffer, 1, BUFFER_SIZE, pipe)) > 0)
+    {
+        int total_bytes_sent = 0;
+        while (total_bytes_sent < bytes_read)
+        {
+            int bytes_sent = send(session->data_socket, buffer + total_bytes_sent, bytes_read - total_bytes_sent, 0);
+            if (bytes_sent < 0)
+            {
+                pclose(pipe);
+                close_data_connection(session);
+                send_message(client_socket, "426 Connection closed; transfer aborted.\r\n");
+            }
+            total_bytes_sent += bytes_sent;
+        }
+
+        session->bytes_transferred += total_bytes_sent;
+
+        if (total_bytes_sent < bytes_read)
+        {
+            break;
+        }
+    }
+
+    pclose(pipe);
+    close_data_connection(session);
+
+    if (ferror(pipe))
+    {
+        send_message(client_socket, "451 Failed to read command output.\r\n");
+    }
+    else
+    {
+        send_message(client_socket, "226 Transfer complete.\r\n");
+    }
 }
 
 void handle_unknown(ClientSession *session, int client_socket, const char *command)

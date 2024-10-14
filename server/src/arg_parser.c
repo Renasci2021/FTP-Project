@@ -30,7 +30,7 @@ int parse_arguments(int argc, char *argv[], int *port, char *root)
                 fprintf(stderr, "Root path is too long\n");
                 return -1;
             }
-            strcpy(root_path, root);
+            strcpy(root, argv[++i]);
         }
         else if (strcmp(argv[i], "-debug") == 0)
         {
