@@ -3,8 +3,10 @@ using FtpClient.Core.Models;
 
 namespace FtpClient.Core;
 
-public partial class AnonymousClient : IFtpCommands
+public partial class FtpClient : IFtpCommands
 {
+    // TODO: implement the IFtpCommands interface
+
     public FtpResponse HandleCwdCommand(string path)
     {
         throw new NotImplementedException();

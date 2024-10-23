@@ -4,7 +4,7 @@ using FtpClient.Core.Models;
 
 namespace FtpClient.Core;
 
-public partial class AnonymousClient(string host, int port) : IFtpClient
+public partial class FtpClient(string host, int port) : IFtpClient
 {
     private readonly string _host = host;
     private readonly int _port = port;
@@ -43,8 +43,7 @@ public partial class AnonymousClient(string host, int port) : IFtpClient
     {
         return command switch
         {
-            "NULL" => new FtpResponse(0, "Null", true),
-            "DATA" => new FtpResponse(0, "Data", true, "fds\nfdas"),
+            // TODO: handle other commands
             _ => new FtpResponse(0, "Unknown command", false),
         };
     }

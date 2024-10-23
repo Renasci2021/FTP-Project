@@ -14,7 +14,7 @@ class Program
         TextWriter? logWriter = debug ? Console.Out : null;
         TextWriter? errorWriter = debug ? Console.Error : null;
 
-        var executor = new FtpClientExecutor(new AnonymousClient(host, port), new Logger(logWriter, errorWriter));
+        var executor = new FtpClientExecutor(new FtpClient.Core.FtpClient(host, port), new Logger(logWriter, errorWriter));
         executor.Execute();
     }
 
