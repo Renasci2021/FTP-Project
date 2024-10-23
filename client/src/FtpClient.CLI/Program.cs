@@ -10,11 +10,9 @@ class Program
     static void Main(string[] args)
     {
         if (!TryParseArguments(args, out string host, out int port, out bool debug)) return;
+        Debug.IsEnabled = debug;
 
-        TextWriter? logWriter = debug ? Console.Out : null;
-        TextWriter? errorWriter = debug ? Console.Error : null;
-
-        var executor = new FtpClientExecutor(new FtpClient.Core.FtpClient(host, port), new Logger(logWriter, errorWriter));
+        var executor = new FtpClientExecutor(new FtpClient.Core.FtpClient(host, port));
         executor.Execute();
     }
 

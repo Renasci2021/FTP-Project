@@ -4,10 +4,9 @@ using FtpClient.Core.Models;
 
 namespace FtpClient.CLI.Core;
 
-internal class FtpClientExecutor(IFtpClient ftpClient, Logger logger)
+internal class FtpClientExecutor(IFtpClient ftpClient)
 {
     private readonly IFtpClient _ftpClient = ftpClient;
-    private readonly Logger _logger = logger;
 
     public void Execute()
     {
@@ -24,7 +23,7 @@ internal class FtpClientExecutor(IFtpClient ftpClient, Logger logger)
 
             if (command == "QUIT")
             {
-                _logger.LogInfo("Exiting FTP client");
+                Debug.LogInfo("Exiting FTP client");
                 break;
             }
         }
@@ -32,12 +31,12 @@ internal class FtpClientExecutor(IFtpClient ftpClient, Logger logger)
 
     private bool TryEstablishConnection()
     {
-        _logger.LogInfo("Starting FTP client");
+        Debug.LogInfo("Starting FTP client");
 
         var response = _ftpClient.Connect();
         if (!response.IsSuccess)
         {
-            _logger.LogError(response.Message);
+            Debug.LogError(response.Message);
             return false;
         }
 
@@ -61,20 +60,29 @@ internal class FtpClientExecutor(IFtpClient ftpClient, Logger logger)
         argument = parts.Length > 1 ? parts[1] : string.Empty;
     }
 
-    private void PrintResponse(FtpResponse response)
+    private static void PrintResponse(FtpResponse response)
     {
         if (response.IsSuccess)
         {
+            if (response.Code != 0)
+            {
+                Console.ForegroundColor = ConsoleColor.Green;
+                Console.Write(response.Code + " ");
+                Console.ResetColor();
+            }
+
             Console.WriteLine(response.Message);
 
             if (response.Data != null)
             {
+                Console.ForegroundColor = ConsoleColor.Cyan;
                 Console.WriteLine(response.Data);
+                Console.ResetColor();
             }
         }
         else
         {
-            _logger.LogError(response.Message);
+            Debug.LogError(response.Message);
         }
     }
 }
