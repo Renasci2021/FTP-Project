@@ -20,7 +20,7 @@ internal class FtpClientExecutor(IFtpClient ftpClient, Logger logger)
 
             // TODO: 参数校验
             var response = _ftpClient.HandleCommand(command, argument);
-            HandleResponse(response);
+            PrintResponse(response);
 
             if (command == "QUIT")
             {
@@ -45,19 +45,6 @@ internal class FtpClientExecutor(IFtpClient ftpClient, Logger logger)
         return true;
     }
 
-    private void Dispose()
-    {
-        _logger.LogInfo("Disconnecting FTP client");
-
-        var response = _ftpClient.Disconnect();
-        if (!response.IsSuccess)
-        {
-            _logger.LogError(response.Message);
-        }
-
-        Console.WriteLine(response.Message);
-    }
-
     private static void ReadCommand(out string command, out string argument)
     {
         Console.Write("ftp> ");
@@ -74,7 +61,7 @@ internal class FtpClientExecutor(IFtpClient ftpClient, Logger logger)
         argument = parts.Length > 1 ? parts[1] : string.Empty;
     }
 
-    private void HandleResponse(FtpResponse response)
+    private void PrintResponse(FtpResponse response)
     {
         if (response.IsSuccess)
         {

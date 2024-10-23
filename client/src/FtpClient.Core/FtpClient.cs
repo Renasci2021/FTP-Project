@@ -12,6 +12,9 @@ public partial class FtpClient(string host, int port) : IFtpClient
     private TcpClient? _controlClient;
     private NetworkStream? _controlStream;
 
+    private TcpClient? _dataClient;
+    private NetworkStream? _dataStream;
+
     private StreamReader? _reader;
     private StreamWriter? _writer;
 
@@ -24,39 +27,59 @@ public partial class FtpClient(string host, int port) : IFtpClient
         _writer = new StreamWriter(_controlStream) { AutoFlush = true };
 
         // Read the welcome message
-        (int code, string message) = ReadResponse();
-
-        return new FtpResponse(code, message, code == 220);
+        return ReadResponse();
     }
 
-    public FtpResponse Disconnect()
+    public void Disconnect()
     {
         _reader?.Close();
         _writer?.Close();
-        _controlStream?.Close();
         _controlClient?.Close();
-
-        return new FtpResponse(0, "Disconnected", true);
+        _controlStream?.Close();
+        _dataClient?.Close();
+        _dataStream?.Close();
     }
 
     public FtpResponse HandleCommand(string command, string argument)
     {
         return command switch
         {
+            "USER" => HandleBasicCommand(command, argument),
+            "PASS" => HandleBasicCommand(command, argument),
+            "PORT" => HandlePortCommand(argument),
+            "PASV" => HandlePasvCommand(argument),
+            "SYST" => HandleBasicCommand(command, argument),
+            "TYPE" => HandleBasicCommand(command, argument),
+            "QUIT" => HandleQuitCommand(),
+            "PWD" => HandleBasicCommand(command, argument),
+            "MKD" => HandleBasicCommand(command, argument),
+            "RMD" => HandleBasicCommand(command, argument),
+            "CWD" => HandleBasicCommand(command, argument),
+
             // TODO: handle other commands
             _ => new FtpResponse(0, "Unknown command", false),
         };
     }
 
-    private (int code, string message) ReadResponse()
+
+    private void SendCommand(string command, string argument)
     {
-        string response = _reader!.ReadLine()
-            ?? throw new IOException("Failed to read response");
+        _writer!.Write($"{command} {argument}\r\n");
+    }
+
+    private FtpResponse ReadResponse()
+    {
+        string? response = _reader!.ReadLine();
+
+        if (response == null)
+        {
+            return new FtpResponse(0, "No response from server", false);
+        }
 
         int code = int.Parse(response[..3]);
 
         // TODO: handle multiline responses
 
-        return (code, response);
+        return new FtpResponse(code, response, true);
     }
 }
