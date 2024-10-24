@@ -85,6 +85,61 @@ public partial class FtpClient
         }
     }
 
+    private async Task HandleRetrCommand(string argument)
+    {
+        if (!EstablishDataConnection()) return;
+
+        SendCommand("RETR", argument);
+        var response = ReadResponse();
+
+        if (response?.Code != 125 && response?.Code != 150) return;
+
+        LogMessageReceived?.Invoke(this, "Downloading file...");
+        var reader = new StreamReader(_dataStream!);
+        var task = reader.ReadToEndAsync();
+
+        while (true)
+        {
+            var endResponse = ReadResponse();
+            if (endResponse?.Code == 226) break;
+
+            await Task.Delay(100);
+        }
+
+        File.WriteAllText(argument, task.Result);
+        LogMessageReceived?.Invoke(this, "File downloaded");
+
+        CloseDataConnection();
+    }
+
+    private async Task HandleStorCommand(string argument)
+    {
+        if (!EstablishDataConnection()) return;
+
+        SendCommand("STOR", argument);
+        var response = ReadResponse();
+
+        if (response?.Code != 125 && response?.Code != 150) return;
+
+        byte[] bytes = File.ReadAllBytes(argument);
+
+        LogMessageReceived?.Invoke(this, "Uploading file...");
+        await _dataStream!.WriteAsync(bytes);
+        await _dataStream.FlushAsync();
+        _dataStream.Close();
+        LogMessageReceived?.Invoke(this, "File uploaded");
+
+        while (true)
+        {
+            var endResponse = ReadResponse();
+            if (endResponse?.Code == 226) break;
+
+            await Task.Delay(100);
+        }
+
+        CloseDataConnection();
+    }
+
     private async Task HandleListCommand(string argument)
     {
         if (!EstablishDataConnection()) return;

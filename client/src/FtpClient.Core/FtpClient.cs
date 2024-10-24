@@ -78,12 +78,19 @@ public partial class FtpClient(string host, int port) : IFtpClient
             case "PASV":
                 HandlePasvCommand(argument);
                 break;
-            case "QUIT":
-                HandleQuitCommand();
-                break;
 
+            case "RETR":
+                await HandleRetrCommand(argument);
+                break;
+            case "STOR":
+                await HandleStorCommand(argument);
+                break;
             case "LIST":
                 await HandleListCommand(argument);
+                break;
+
+            case "QUIT":
+                HandleQuitCommand();
                 break;
 
             default:
