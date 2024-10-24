@@ -1,5 +1,6 @@
 using System.Net.Sockets;
 using System.Text.RegularExpressions;
+using FtpClient.Core.Models;
 
 namespace FtpClient.Core;
 
@@ -98,16 +99,13 @@ public partial class FtpClient
         var reader = new StreamReader(_dataStream!);
         var task = reader.ReadToEndAsync();
 
-        while (true)
+        var endResponse = await WaitForTransferEnd();
+
+        if (endResponse.Code == 226)
         {
-            var endResponse = ReadResponse();
-            if (endResponse?.Code == 226) break;
-
-            await Task.Delay(100);
+            File.WriteAllText(argument, task.Result);
+            LogMessageReceived?.Invoke(this, "File downloaded");
         }
-
-        File.WriteAllText(argument, task.Result);
-        LogMessageReceived?.Invoke(this, "File downloaded");
 
         CloseDataConnection();
     }
@@ -115,6 +113,12 @@ public partial class FtpClient
     private async Task HandleStorCommand(string argument)
     {
         if (!EstablishDataConnection()) return;
+
+        if (!File.Exists(argument))
+        {
+            ErrorOccurred?.Invoke(this, new Exception("File not found"));
+            return;
+        }
 
         SendCommand("STOR", argument);
         var response = ReadResponse();
@@ -129,13 +133,7 @@ public partial class FtpClient
         _dataStream.Close();
         LogMessageReceived?.Invoke(this, "File uploaded");
 
-        while (true)
-        {
-            var endResponse = ReadResponse();
-            if (endResponse?.Code == 226) break;
-
-            await Task.Delay(100);
-        }
+        await WaitForTransferEnd();
 
         CloseDataConnection();
     }
@@ -147,20 +145,18 @@ public partial class FtpClient
         SendCommand("LIST", argument);
         var response = ReadResponse();
 
-        if (response?.Code != 125 && response?.Code != 150) return;
+        if (response!.Code != 125 && response.Code != 150) return;
 
         var reader = new StreamReader(_dataStream!);
         var task = reader.ReadToEndAsync();
 
-        while (true)
-        {
-            var endResponse = ReadResponse();
-            if (endResponse?.Code == 226) break;
+        var endResponse = await WaitForTransferEnd();
 
-            await Task.Delay(100);
+        if (endResponse.Code == 226)
+        {
+            DataReceived?.Invoke(this, task.Result);
         }
 
-        DataReceived?.Invoke(this, task.Result);
         CloseDataConnection();
     }
 
@@ -207,6 +203,23 @@ public partial class FtpClient
         _dataListener?.Stop();
 
         _dataConnectionMode = DataConnectionMode.None;
+    }
+
+    private async Task<FtpResponse> WaitForTransferEnd()
+    {
+        FtpResponse endResponse;
+
+        while (true)
+        {
+            endResponse = ReadResponse()!;
+
+            if (endResponse.Code == 226) break;
+            if (endResponse.Code >= 400) break;
+
+            await Task.Delay(100);
+        }
+
+        return endResponse;
     }
 
     private void ListenDataConnection(string ip, int port)
