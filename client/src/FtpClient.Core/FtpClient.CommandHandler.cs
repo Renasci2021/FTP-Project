@@ -67,7 +67,7 @@ public partial class FtpClient
 
         try
         {
-            var match = PasvRegex().Match(response.Message);
+            var match = PasvRegex().Match(response.Messages[0]);
             var ip = string.Join('.', match.Groups.Cast<Group>().Skip(1).Take(4).Select(g => g.Value));
             var port = int.Parse(match.Groups[5].Value) * 256 + int.Parse(match.Groups[6].Value);
 

@@ -8,16 +8,26 @@ internal static class FtpConsolePrinter
     {
         if (response == null) return;
 
-        Console.ForegroundColor = response.Code switch
+        var color = response.Code switch
         {
             >= 200 and < 300 => ConsoleColor.Green,
             >= 300 and < 400 => ConsoleColor.Cyan,
             >= 400 => ConsoleColor.Red,
             _ => ConsoleColor.White
         };
+
+        foreach (var message in response.Messages.SkipLast(1))
+        {
+            Console.ForegroundColor = color;
+            Console.Write(response.Code + "-");
+            Console.ResetColor();
+            Console.WriteLine(message);
+        }
+
+        Console.ForegroundColor = color;
         Console.Write(response.Code + " ");
         Console.ResetColor();
-        Console.WriteLine(response.Message);
+        Console.WriteLine(response.Messages.Last());
     }
 
     public static void PrintData(string data)

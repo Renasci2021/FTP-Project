@@ -22,11 +22,11 @@ class Program
         {
             if (args[i] == "-ip" && i + 1 < args.Length)
             {
-                host = args[i++];
+                host = args[++i];
             }
             else if (args[i] == "-port" && i + 1 < args.Length)
             {
-                if (!int.TryParse(args[i++], out port))
+                if (!int.TryParse(args[++i], out port))
                 {
                     Console.WriteLine("Invalid port number");
                     return false;

@@ -107,15 +107,20 @@ public partial class FtpClient(string host, int port) : IFtpClient
 
     private FtpResponse? ReadResponse()
     {
-        string response = _reader!.ReadLine() ?? throw new Exception("No response received");
-
-        // TODO: 处理多行响应
         try
         {
-            int code = int.Parse(response[..3]);
-            string message = response[4..];
+            string response = _reader!.ReadLine()!;
 
-            var ftpResponse = new FtpResponse(code, message);
+            int code = int.Parse(response[..3]);
+            List<string> messages = [response[4..]];
+
+            while (response[3] != ' ')
+            {
+                response = _reader.ReadLine()!;
+                messages.Add(response[4..]);
+            }
+
+            var ftpResponse = new FtpResponse(code, messages);
             ResponseReceived?.Invoke(this, ftpResponse);
             return ftpResponse;
         }
