@@ -16,18 +16,20 @@ internal static class FtpConsolePrinter
             _ => ConsoleColor.White
         };
 
-        foreach (var message in response.Messages.SkipLast(1))
+        foreach (var message in response.Messages)
         {
-            Console.ForegroundColor = color;
-            Console.Write(response.Code + "-");
-            Console.ResetColor();
-            Console.WriteLine(message);
+            if (int.TryParse(message[..3], out _))
+            {
+                Console.ForegroundColor = color;
+                Console.Write(message[..4]);
+                Console.ResetColor();
+                Console.WriteLine(message[4..]);
+            }
+            else
+            {
+                Console.WriteLine(message);
+            }
         }
-
-        Console.ForegroundColor = color;
-        Console.Write(response.Code + " ");
-        Console.ResetColor();
-        Console.WriteLine(response.Messages.Last());
     }
 
     public static void PrintData(string data)

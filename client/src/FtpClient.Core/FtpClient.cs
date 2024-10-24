@@ -1,4 +1,5 @@
 ﻿using System.Net.Sockets;
+using System.Reflection.Metadata.Ecma335;
 using FtpClient.Core.Interfaces;
 using FtpClient.Core.Models;
 
@@ -35,15 +36,23 @@ public partial class FtpClient(string host, int port) : IFtpClient
 
     public bool Connect()
     {
-        _controlClient = new TcpClient(_host, _port);
-        _controlStream = _controlClient.GetStream();
+        try
+        {
+            _controlClient = new TcpClient(_host, _port);
+            _controlStream = _controlClient.GetStream();
 
-        _reader = new StreamReader(_controlStream);
-        _writer = new StreamWriter(_controlStream) { AutoFlush = true };
+            _reader = new StreamReader(_controlStream);
+            _writer = new StreamWriter(_controlStream) { AutoFlush = true };
 
-        // Read the welcome message
-        var response = ReadResponse();
-        return response?.Code == 220;
+            // Read welcome messages
+            ReadResponse();
+            return true;
+        }
+        catch (Exception ex)
+        {
+            ErrorOccurred?.Invoke(this, ex);
+            return false;
+        }
     }
 
     public void Disconnect()
@@ -107,27 +116,23 @@ public partial class FtpClient(string host, int port) : IFtpClient
 
     private FtpResponse? ReadResponse()
     {
-        try
+        string? response = _reader!.ReadLine();
+        if (response == null) return null;
+
+        int code = int.Parse(response[..3]);
+        List<string> messages = [];
+
+        while (true)
         {
-            string response = _reader!.ReadLine()!;
+            messages.Add(response);
 
-            int code = int.Parse(response[..3]);
-            List<string> messages = [response[4..]];
+            if (int.TryParse(response[..3], out _) && response[3] == ' ') break;
 
-            while (response[3] != ' ')
-            {
-                response = _reader.ReadLine()!;
-                messages.Add(response[4..]);
-            }
-
-            var ftpResponse = new FtpResponse(code, messages);
-            ResponseReceived?.Invoke(this, ftpResponse);
-            return ftpResponse;
+            response = _reader.ReadLine()!;
         }
-        catch (Exception ex)
-        {
-            ErrorOccurred?.Invoke(this, ex);
-            return null;
-        }
+
+        var ftpResponse = new FtpResponse(code, messages);
+        ResponseReceived?.Invoke(this, ftpResponse);
+        return ftpResponse;
     }
 }
