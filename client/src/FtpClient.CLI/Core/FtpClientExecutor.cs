@@ -1,47 +1,34 @@
 using FtpClient.CLI.Utilities;
 using FtpClient.Core.Interfaces;
-using FtpClient.Core.Models;
 
 namespace FtpClient.CLI.Core;
 
-internal class FtpClientExecutor(IFtpClient ftpClient)
+internal class FtpClientExecutor
 {
-    private readonly IFtpClient _ftpClient = ftpClient;
+    private readonly IFtpClient _ftpClient;
+
+    public FtpClientExecutor(IFtpClient ftpClient)
+    {
+        _ftpClient = ftpClient;
+
+        _ftpClient.ResponseReceived += (_, response) => FtpConsolePrinter.PrintResponse(response);
+        _ftpClient.LogMessageReceived += (_, message) => FtpConsolePrinter.PrintLogMessage(message);
+        _ftpClient.ErrorOccurred += (_, exception) => FtpConsolePrinter.PrintErrorMessage(exception);
+    }
 
     public void Execute()
     {
-        if (!TryEstablishConnection()) return;
+        if (!_ftpClient.Connect()) return;
 
         while (true)
         {
             ReadCommand(out var command, out var argument);
             if (string.IsNullOrWhiteSpace(command)) continue;
 
-            // TODO: 参数校验
-            var response = _ftpClient.HandleCommand(command, argument);
-            PrintResponse(response);
+            _ftpClient.HandleCommand(command, argument).Wait();
 
-            if (command == "QUIT")
-            {
-                Debug.LogInfo("Exiting FTP client");
-                break;
-            }
+            if (command == "QUIT") break;
         }
-    }
-
-    private bool TryEstablishConnection()
-    {
-        Debug.LogInfo("Starting FTP client");
-
-        var response = _ftpClient.Connect();
-        if (!response.IsSuccess)
-        {
-            Debug.LogError(response.Message);
-            return false;
-        }
-
-        Console.WriteLine(response.Message);
-        return true;
     }
 
     private static void ReadCommand(out string command, out string argument)
@@ -58,31 +45,5 @@ internal class FtpClientExecutor(IFtpClient ftpClient)
         var parts = input.Split(' ', 2);
         command = parts[0].ToUpper();
         argument = parts.Length > 1 ? parts[1] : string.Empty;
-    }
-
-    private static void PrintResponse(FtpResponse response)
-    {
-        if (response.IsSuccess)
-        {
-            if (response.Code != 0)
-            {
-                Console.ForegroundColor = ConsoleColor.Green;
-                Console.Write(response.Code + " ");
-                Console.ResetColor();
-            }
-
-            Console.WriteLine(response.Message);
-
-            if (response.Data != null)
-            {
-                Console.ForegroundColor = ConsoleColor.Cyan;
-                Console.WriteLine(response.Data);
-                Console.ResetColor();
-            }
-        }
-        else
-        {
-            Debug.LogError(response.Message);
-        }
     }
 }

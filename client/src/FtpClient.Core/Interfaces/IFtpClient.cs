@@ -4,8 +4,12 @@ namespace FtpClient.Core.Interfaces;
 
 public interface IFtpClient
 {
-    FtpResponse Connect();
+    bool Connect();
     void Disconnect();
 
-    FtpResponse HandleCommand(string command, string argument);
+    Task HandleCommand(string command, string argument);
+
+    event EventHandler<FtpResponse?> ResponseReceived;
+    event EventHandler<string> LogMessageReceived;
+    event EventHandler<Exception> ErrorOccurred;
 }

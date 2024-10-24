@@ -1,55 +1,54 @@
 using System.Net.Sockets;
 using System.Text.RegularExpressions;
-using FtpClient.Core.Models;
 
 namespace FtpClient.Core;
 
 public partial class FtpClient
 {
-    private FtpResponse HandleBasicCommand(string command, string argument)
+    private void HandleBasicCommand(string command, string argument)
     {
         SendCommand(command, argument);
-        return ReadResponse();
+        ReadResponse();
     }
 
-    // TODO: 测试两种数据连接方式
-    private FtpResponse HandlePortCommand(string argument)
+    private void HandlePortCommand(string argument)
     {
         var parts = argument.Split(',');
+
         if (parts.Length != 6)
         {
-            return new FtpResponse(0, "Invalid PORT command", false);
+            ErrorOccurred?.Invoke(this, new ArgumentException("Invalid PORT argument"));
+            return;
         }
-
-        var ip = string.Join('.', parts[0..4]);
-        var port = int.Parse(parts[4]) * 256 + int.Parse(parts[5]);
-
-        SendCommand("PORT", argument);
 
         try
         {
-            OpenDataConnection(ip, port);
-            return ReadResponse();
+            var ip = string.Join('.', parts[0..4]);
+            var port = int.Parse(parts[4]) * 256 + int.Parse(parts[5]);
+
+            ListenDataConnection(ip, port);
+
+            SendCommand("PORT", argument);
+            ReadResponse();
         }
-        catch (Exception ex)
+        catch (ArgumentException ex)
         {
-            return new FtpResponse(0, ex.Message, false);
+            ErrorOccurred?.Invoke(this, new Exception("Failed to parse PORT argument", ex));
+        }
+        catch (SocketException ex)
+        {
+            ErrorOccurred?.Invoke(this, new Exception("Failed to open data connection", ex));
         }
     }
 
-    private FtpResponse HandlePasvCommand(string argument)
+    private void HandlePasvCommand(string argument)
     {
         SendCommand("PASV", argument);
         var response = ReadResponse();
 
-        if (!response.IsSuccess)
+        if (response?.Code != 227)
         {
-            return response;
-        }
-
-        if (response.Code != 227)
-        {
-            return response;
+            return;
         }
 
         try
@@ -58,20 +57,35 @@ public partial class FtpClient
             var ip = string.Join('.', match.Groups.Cast<Group>().Skip(1).Take(4).Select(g => g.Value));
             var port = int.Parse(match.Groups[5].Value) * 256 + int.Parse(match.Groups[6].Value);
             OpenDataConnection(ip, port);
-            return response;
         }
-        catch (Exception ex)
+        catch (ArgumentException ex)
         {
-            return new FtpResponse(0, ex.Message, false);
+            ErrorOccurred?.Invoke(this, new Exception("Failed to parse PASV response", ex));
+        }
+        catch (SocketException ex)
+        {
+            ErrorOccurred?.Invoke(this, new Exception("Failed to open data connection", ex));
         }
     }
 
-    private FtpResponse HandleQuitCommand()
+    private async Task HandleListCommand(string argument)
+    {
+        await Task.Delay(1000);
+        ErrorOccurred?.Invoke(this, new NotImplementedException());
+    }
+
+    private void HandleQuitCommand()
     {
         SendCommand("QUIT", "");
-        var response = ReadResponse();
+        ReadResponse();
         Disconnect();
-        return response;
+    }
+
+    private void ListenDataConnection(string ip, int port)
+    {
+        _dataListener?.Stop();
+        _dataListener = new TcpListener(System.Net.IPAddress.Parse(ip), port);
+        _dataListener.Start();
     }
 
     private void OpenDataConnection(string ip, int port)
@@ -81,6 +95,8 @@ public partial class FtpClient
 
         _dataClient = new TcpClient(ip, port);
         _dataStream = _dataClient.GetStream();
+
+        LogMessageReceived?.Invoke(this, $"Data connection opened to {ip}:{port}");
     }
 
     [GeneratedRegex(@"(\d+),(\d+),(\d+),(\d+),(\d+),(\d+)")]
