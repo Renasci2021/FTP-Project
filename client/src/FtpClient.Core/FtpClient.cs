@@ -6,6 +6,13 @@ namespace FtpClient.Core;
 
 public partial class FtpClient(string host, int port) : IFtpClient
 {
+    private enum DataConnectionMode
+    {
+        None,
+        Active,
+        Passive
+    }
+
     private readonly string _host = host;
     private readonly int _port = port;
 
@@ -18,7 +25,11 @@ public partial class FtpClient(string host, int port) : IFtpClient
     private TcpClient? _dataClient;
     private NetworkStream? _dataStream;
 
+    private DataConnectionMode _dataConnectionMode = DataConnectionMode.None;
+
     public event EventHandler<FtpResponse?>? ResponseReceived;
+    public event EventHandler<string>? DataReceived;
+
     public event EventHandler<string>? LogMessageReceived;
     public event EventHandler<Exception>? ErrorOccurred;
 

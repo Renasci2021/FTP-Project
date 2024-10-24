@@ -18,11 +18,13 @@ internal static class FtpConsolePrinter
         Console.Write(response.Code + " ");
         Console.ResetColor();
         Console.WriteLine(response.Message);
+    }
 
-        if (response.Data != null)
-        {
-            Console.WriteLine(response.Data);
-        }
+    public static void PrintData(string data)
+    {
+        Console.ForegroundColor = ConsoleColor.Yellow;
+        Console.WriteLine(data);
+        Console.ResetColor();
     }
 
     public static void PrintLogMessage(string message)

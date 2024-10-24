@@ -10,6 +10,8 @@ public interface IFtpClient
     Task HandleCommand(string command, string argument);
 
     event EventHandler<FtpResponse?> ResponseReceived;
+    event EventHandler<string> DataReceived;
+
     event EventHandler<string> LogMessageReceived;
     event EventHandler<Exception> ErrorOccurred;
 }

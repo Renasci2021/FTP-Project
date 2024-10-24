@@ -12,6 +12,8 @@ internal class FtpClientExecutor
         _ftpClient = ftpClient;
 
         _ftpClient.ResponseReceived += (_, response) => FtpConsolePrinter.PrintResponse(response);
+        _ftpClient.DataReceived += (_, data) => FtpConsolePrinter.PrintData(data);
+
         _ftpClient.LogMessageReceived += (_, message) => FtpConsolePrinter.PrintLogMessage(message);
         _ftpClient.ErrorOccurred += (_, exception) => FtpConsolePrinter.PrintErrorMessage(exception);
     }

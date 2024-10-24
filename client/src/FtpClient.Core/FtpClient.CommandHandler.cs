@@ -21,12 +21,20 @@ public partial class FtpClient
             return;
         }
 
+        if (_dataConnectionMode != DataConnectionMode.None)
+        {
+            CloseDataConnection();
+            LogMessageReceived?.Invoke(this, "Previous data connection closed");
+        }
+
         try
         {
             var ip = string.Join('.', parts[0..4]);
             var port = int.Parse(parts[4]) * 256 + int.Parse(parts[5]);
 
             ListenDataConnection(ip, port);
+            _dataConnectionMode = DataConnectionMode.Active;
+            LogMessageReceived?.Invoke(this, $"Data connection listening at {ip}:{port}");
 
             SendCommand("PORT", argument);
             ReadResponse();
@@ -43,6 +51,12 @@ public partial class FtpClient
 
     private void HandlePasvCommand(string argument)
     {
+        if (_dataConnectionMode != DataConnectionMode.None)
+        {
+            CloseDataConnection();
+            LogMessageReceived?.Invoke(this, "Previous data connection closed");
+        }
+
         SendCommand("PASV", argument);
         var response = ReadResponse();
 
@@ -56,7 +70,10 @@ public partial class FtpClient
             var match = PasvRegex().Match(response.Message);
             var ip = string.Join('.', match.Groups.Cast<Group>().Skip(1).Take(4).Select(g => g.Value));
             var port = int.Parse(match.Groups[5].Value) * 256 + int.Parse(match.Groups[6].Value);
+
             OpenDataConnection(ip, port);
+            _dataConnectionMode = DataConnectionMode.Passive;
+            LogMessageReceived?.Invoke(this, $"Data connection opened at {ip}:{port}");
         }
         catch (ArgumentException ex)
         {
@@ -70,8 +87,26 @@ public partial class FtpClient
 
     private async Task HandleListCommand(string argument)
     {
-        await Task.Delay(1000);
-        ErrorOccurred?.Invoke(this, new NotImplementedException());
+        if (!EstablishDataConnection()) return;
+
+        SendCommand("LIST", argument);
+        var response = ReadResponse();
+
+        if (response?.Code != 125 && response?.Code != 150) return;
+
+        var reader = new StreamReader(_dataStream!);
+        var task = reader.ReadToEndAsync();
+
+        while (true)
+        {
+            var endResponse = ReadResponse();
+            if (endResponse?.Code == 226) break;
+
+            await Task.Delay(100);
+        }
+
+        DataReceived?.Invoke(this, task.Result);
+        CloseDataConnection();
     }
 
     private void HandleQuitCommand()
@@ -79,6 +114,44 @@ public partial class FtpClient
         SendCommand("QUIT", "");
         ReadResponse();
         Disconnect();
+    }
+
+    private bool EstablishDataConnection()
+    {
+        if (_dataConnectionMode == DataConnectionMode.Active)
+        {
+            if (_dataListener!.Pending())
+            {
+                _dataClient = _dataListener.AcceptTcpClient();
+                _dataStream = _dataClient.GetStream();
+                LogMessageReceived?.Invoke(this, "Data connection established");
+                return true;
+            }
+            else
+            {
+                ErrorOccurred?.Invoke(this, new Exception("Data connection not established"));
+                _dataConnectionMode = DataConnectionMode.None;
+                return false;
+            }
+        }
+        else if (_dataConnectionMode == DataConnectionMode.Passive)
+        {
+            return true;
+        }
+        else
+        {
+            ErrorOccurred?.Invoke(this, new Exception("Data connection mode not set"));
+            return false;
+        }
+    }
+
+    private void CloseDataConnection()
+    {
+        _dataStream?.Close();
+        _dataClient?.Close();
+        _dataListener?.Stop();
+
+        _dataConnectionMode = DataConnectionMode.None;
     }
 
     private void ListenDataConnection(string ip, int port)
@@ -90,13 +163,8 @@ public partial class FtpClient
 
     private void OpenDataConnection(string ip, int port)
     {
-        _dataClient?.Close();
-        _dataStream?.Close();
-
         _dataClient = new TcpClient(ip, port);
         _dataStream = _dataClient.GetStream();
-
-        LogMessageReceived?.Invoke(this, $"Data connection opened to {ip}:{port}");
     }
 
     [GeneratedRegex(@"(\d+),(\d+),(\d+),(\d+),(\d+),(\d+)")]
