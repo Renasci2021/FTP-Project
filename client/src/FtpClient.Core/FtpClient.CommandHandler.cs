@@ -96,14 +96,21 @@ public partial class FtpClient
         if (response?.Code != 125 && response?.Code != 150) return;
 
         LogMessageReceived?.Invoke(this, "Downloading file...");
-        var reader = new StreamReader(_dataStream!);
-        var task = reader.ReadToEndAsync();
+
+        using var memoryStream = new MemoryStream();
+        byte[] buffer = new byte[8192];
+        int bytesRead;
+
+        while ((bytesRead = await _dataStream!.ReadAsync(buffer)) > 0)
+        {
+            memoryStream.Write(buffer, 0, bytesRead);
+        }
 
         var endResponse = await WaitForTransferEnd();
 
         if (endResponse.Code == 226)
         {
-            File.WriteAllText(argument, task.Result);
+            File.WriteAllBytes(argument, memoryStream.ToArray());
             LogMessageReceived?.Invoke(this, "File downloaded");
         }
 

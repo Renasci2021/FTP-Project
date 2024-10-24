@@ -41,8 +41,10 @@ internal static class FtpConsolePrinter
 
     public static void PrintLogMessage(string message)
     {
+#if DEBUG
         Console.Write("ftp: ");
         Console.WriteLine(message);
+#endif
     }
 
     public static void PrintErrorMessage(Exception exception)
