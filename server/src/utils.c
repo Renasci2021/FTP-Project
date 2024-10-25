@@ -42,3 +42,78 @@ void send_message(int client_socket, const char *message)
 {
     send(client_socket, message, strlen(message), 0);
 }
+
+int calculate_path(char *input, char *path)
+{
+    // 计算工作目录
+    // 以 / 开头，输入从工作目录始的绝对路径
+    // 解析其中的 .. 和 .
+    // 返回 0 表示成功，-1 表示失败
+    // 若 .. 超出根目录，返回 -1
+
+    if (input[0] != '/')
+    {
+        log_error("Invalid path: %s\n", input);
+        return -1;
+    }
+
+    char *token = strtok(input, "/");
+    path[0] = '/';
+    int path_len = 1;
+
+    while (token != NULL)
+    {
+        if (strcmp(token, "..") == 0)
+        {
+            // 返回上一级目录
+            if (path_len == 1)
+            {
+                // 已经是根目录
+                return -1;
+            }
+
+            // 删除最后一个目录
+            while (path_len > 0 && path[path_len - 1] != '/')
+            {
+                path_len--;
+            }
+
+            if (path_len > 0)
+            {
+                path_len--;
+            }
+        }
+        else if (strcmp(token, ".") != 0)
+        {
+            // 添加目录
+            int token_len = strlen(token);
+            if (path_len + token_len + 1 >= PATH_MAX_LEN)
+            {
+                log_error("Path too long: %s\n", input);
+                return -1;
+            }
+
+            if (path_len > 0 && path[path_len - 1] != '/')
+            {
+                path[path_len++] = '/';
+            }
+
+            strcpy(path + path_len, token);
+            path_len += token_len;
+        }
+
+        token = strtok(NULL, "/");
+    }
+
+    if (path_len == 0)
+    {
+        path[0] = '/';
+        path[1] = '\0';
+    }
+    else
+    {
+        path[path_len] = '\0';
+    }
+
+    return 0;
+}

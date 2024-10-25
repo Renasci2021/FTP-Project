@@ -8,4 +8,6 @@ void log_info(const char *format, ...);
 
 void send_message(int client_socket, const char *message);
 
+int calculate_path(char *input, char *path);
+
 #endif // UTILS_H

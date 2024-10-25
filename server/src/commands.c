@@ -224,8 +224,11 @@ void handle_retr(ClientSession *session, int client_socket, const char *command)
     // 打开文件
     char filename[PATH_MAX_LEN];
     sscanf(command, "RETR %s", filename);
-    char filepath[PATH_MAX_LEN * 2];
-    snprintf(filepath, PATH_MAX_LEN * 2, "%s/%s", session->working_directory, filename);
+    char filepath[PATH_MAX_LEN];
+    strcpy(filepath, root_path);
+    strcpy(filepath + strlen(filepath), session->working_directory);
+    strcpy(filepath + strlen(filepath), "/");
+    strcpy(filepath + strlen(filepath), filename);
     log_info("[%d] Retrieving file: %s\n", client_socket, filepath);
 
     FILE *file = fopen(filepath, "rb"); // 以二进制只读方式打开文件
@@ -310,8 +313,11 @@ void handle_stor(ClientSession *session, int client_socket, const char *command)
     // 打开文件
     char filename[PATH_MAX_LEN];
     sscanf(command, "STOR %s", filename);
-    char filepath[PATH_MAX_LEN * 2];
-    snprintf(filepath, PATH_MAX_LEN * 2, "%s/%s", session->working_directory, filename);
+    char filepath[PATH_MAX_LEN];
+    strcpy(filepath, root_path);
+    strcpy(filepath + strlen(filepath), session->working_directory);
+    strcpy(filepath + strlen(filepath), "/");
+    strcpy(filepath + strlen(filepath), filename);
     log_info("[%d] Storing file: %s\n", client_socket, filepath);
 
     FILE *file = fopen(filepath, "wb"); // 以二进制写入模式打开文件
@@ -409,7 +415,8 @@ void handle_pwd(ClientSession *session, int client_socket, const char *command)
     }
 
     char response[PATH_MAX_LEN + 256];
-    snprintf(response, PATH_MAX_LEN + 256, "257 \"%s\" is the current directory.\r\n", session->working_directory);
+    snprintf(response, PATH_MAX_LEN + 256, "257 \"%s\" is the current directory.\r\n",
+             session->working_directory);
     send_message(client_socket, response);
 }
 
@@ -433,17 +440,17 @@ void handle_mkd(ClientSession *session, int client_socket, const char *command)
         return;
     }
 
+    char tmp[PATH_MAX_LEN];
+    snprintf(tmp, PATH_MAX_LEN * 2, "%s/%s", session->working_directory, command + 4);
+
     char path[PATH_MAX_LEN];
-    snprintf(path, PATH_MAX_LEN * 2, "%s/%s", session->working_directory, command + 4);
+    calculate_path(tmp, path);
 
-    // 目录必须在服务器根目录下
-    if (strncmp(path, root_path, strlen(root_path)) != 0)
-    {
-        send_message(client_socket, "550 Invalid directory name.\r\n");
-        return;
-    }
+    char os_path[PATH_MAX_LEN];
+    strcpy(os_path, root_path);
+    strcpy(os_path + strlen(os_path), path);
 
-    if (mkdir(path, 0755) < 0)
+    if (mkdir(os_path, 0755) < 0)
     {
         if (errno == EEXIST)
         {
@@ -491,14 +498,11 @@ void handle_rmd(ClientSession *session, int client_socket, const char *command)
     char path[PATH_MAX_LEN];
     snprintf(path, PATH_MAX_LEN * 2, "%s/%s", session->working_directory, command + 4);
 
-    // 目录必须在服务器根目录下
-    if (strncmp(path, root_path, strlen(root_path)) != 0)
-    {
-        send_message(client_socket, "550 Invalid directory name.\r\n");
-        return;
-    }
+    char os_path[PATH_MAX_LEN];
+    strcpy(os_path, root_path);
+    strcpy(os_path + strlen(os_path), path);
 
-    if (rmdir(path) < 0)
+    if (rmdir(os_path) < 0)
     {
         if (errno == ENOENT)
         {
@@ -537,40 +541,95 @@ void handle_cwd(ClientSession *session, int client_socket, const char *command)
         return;
     }
 
-    char path[PATH_MAX_LEN];
-    snprintf(path, PATH_MAX_LEN * 2, "%s/%s", session->working_directory, command + 4);
-
-    // 目录必须在服务器根目录下
-    if (strncmp(path, root_path, strlen(root_path)) != 0)
+    // 绝对路径
+    if (command[4] == '/')
     {
-        send_message(client_socket, "550 Invalid directory name.\r\n");
+        char path[PATH_MAX_LEN];
+        char tmp[PATH_MAX_LEN];
+        snprintf(tmp, PATH_MAX_LEN, "%s", command + 4);
+        if (calculate_path(tmp, path) < 0)
+        {
+            send_message(client_socket, "501 Permisson denied.\r\n");
+            return;
+        }
+
+        if (strlen(path) >= PATH_MAX_LEN)
+        {
+            send_message(client_socket, "501 Directory path too long.\r\n");
+            return;
+        }
+
+        char os_path[PATH_MAX_LEN];
+        strcpy(os_path, root_path);
+        strcpy(os_path + strlen(os_path), path);
+
+        struct stat statbuf;
+        if (stat(os_path, &statbuf) < 0)
+        {
+            if (errno == ENOENT)
+            {
+                char response[PATH_MAX_LEN + 256];
+                sprintf(response, "550 Directory does not exist: \"%s\".\r\n", path);
+                send_message(client_socket, response);
+            }
+            else if (errno == EACCES)
+            {
+                send_message(client_socket, "550 Permission denied.\r\n");
+            }
+            else
+            {
+                send_message(client_socket, "550 Failed to change directory.\r\n");
+            }
+            return;
+        }
+
+        strncpy(session->working_directory, path, PATH_MAX_LEN);
+        send_message(client_socket, "250 Directory changed.\r\n");
         return;
     }
-
-    struct stat statbuf;
-    if (stat(path, &statbuf) < 0)
+    // 相对路径
+    else
     {
-        if (errno == ENOENT)
+        char tmp[PATH_MAX_LEN];
+        snprintf(tmp, PATH_MAX_LEN * 2, "%s/%s", session->working_directory, command + 4);
+
+        char path[PATH_MAX_LEN];
+        if (calculate_path(tmp, path) < 0)
         {
-            send_message(client_socket, "550 Directory does not exist.\r\n");
+            send_message(client_socket, "501 Permission denied.\r\n");
+            return;
         }
-        else if (errno == EACCES)
+
+        char os_path[PATH_MAX_LEN];
+        strcpy(os_path, root_path);
+        strcpy(os_path + strlen(os_path), path);
+
+        struct stat statbuf;
+        if (stat(os_path, &statbuf) < 0)
         {
-            send_message(client_socket, "550 Permission denied.\r\n");
+            if (errno == ENOENT)
+            {
+                char response[PATH_MAX_LEN + 256];
+                sprintf(response, "550 Directory does not exist: \"%s\".\r\n", path);
+                send_message(client_socket, response);
+            }
+            else if (errno == EACCES)
+            {
+                send_message(client_socket, "550 Permission denied.\r\n");
+            }
+            else
+            {
+                send_message(client_socket, "550 Failed to change directory.\r\n");
+            }
+            return;
         }
-        else
-        {
-            send_message(client_socket, "550 Failed to change directory.\r\n");
-        }
-        return;
+
+        strncpy(session->working_directory, path, PATH_MAX_LEN);
+
+        char response[PATH_MAX_LEN + 256];
+        sprintf(response, "250 Directory changed to \"%s\".\r\n", session->working_directory);
+        send_message(client_socket, response);
     }
-
-    // 更新工作目录
-    strncpy(session->working_directory, path, PATH_MAX_LEN);
-
-    char response[PATH_MAX_LEN + 256];
-    sprintf(response, "250 Directory changed to \"%s\".\r\n", path);
-    send_message(client_socket, response);
 }
 
 void handle_list(ClientSession *session, int client_socket, const char *command)
@@ -605,8 +664,13 @@ void handle_list(ClientSession *session, int client_socket, const char *command)
 
     send_message(client_socket, "150 Opening data connection.\r\n");
 
-    // 执行 ls 命令
-    FILE *pipe = popen("ls -l", "r");
+    // 在用户的工作目录中执行 ls 命令
+    char os_command[PATH_MAX_LEN + 16];
+    strcpy(os_command, "ls ");
+    strcpy(os_command + 3, root_path);
+    strcpy(os_command + strlen(os_command), session->working_directory);
+    strcpy(os_command + strlen(os_command), " -l");
+    FILE *pipe = popen(os_command, "r");
     if (pipe == NULL)
     {
         close_data_connection(session);
